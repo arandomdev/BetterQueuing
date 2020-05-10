@@ -1,0 +1,7 @@
+#import "MPCPlayerResponse.h"
+#import "MPCPlayerResponseItem.h"
+#import "MPCPlayerResponseTracklist.h"
+#import "MPCPlayerReorderItemsCommand.h"
+#import "MPCPlayerChangeRequest.h"
+#import "MPCPlaybackIntent.h"
+#import "MPCPlayerResetTracklistCommand.h"
