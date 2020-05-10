@@ -45,6 +45,11 @@
 		dispatch_async(dispatch_get_main_queue(), ^{
 			[self.dataSource updateWithResponse:self.requestController.response];
 			[self.tableView reloadData];
+
+			if ([self.tableView numberOfRowsInSection:0] != 0) {
+				NSIndexPath *zeroIndex = [NSIndexPath indexPathForRow: 0 inSection: 0];
+				[self.tableView scrollToRowAtIndexPath:zeroIndex atScrollPosition: UITableViewScrollPositionTop animated: YES];
+			}
 		});
 	}
 }
@@ -75,11 +80,24 @@
 			return (NSComparisonResult)NSOrderedSame;
 		}];
 
+		bool allSuccessful = YES;
 		int targetIndex = 0;
 		for (NSIndexPath *indexPath in selectedPaths) {
-			[self.playerController moveItemAtIndex:indexPath.row toIndex:targetIndex];
+			if (![self.playerController moveItemAtIndex:indexPath.row toIndex:targetIndex]) {
+				allSuccessful = NO;
+			}
 			targetIndex++;
 		}
+
+		dispatch_async(dispatch_get_main_queue(), ^(void) {
+			UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];
+			if (allSuccessful) {
+				[generator notificationOccurred: UINotificationFeedbackTypeSuccess];
+			}
+			else {
+				[generator notificationOccurred: UINotificationFeedbackTypeError];
+			}
+		});
 	});
 }
 @end

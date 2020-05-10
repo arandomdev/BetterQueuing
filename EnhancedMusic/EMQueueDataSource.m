@@ -66,7 +66,9 @@
 	
 	cell.textLabel.text = song.title;
 	cell.detailTextLabel.text = song.artist;
-	cell.imageView.image = [song.artwork imageWithSize:CGSizeMake(57, 57)];
+
+	UIImage *artwork = [song.artwork imageWithSize:song.artwork.bounds.size];
+	cell.imageView.image = artwork;
 
 	return cell;
 }

@@ -4,11 +4,6 @@
 #import "EnhancedMusic/EMQueueViewController.h"
 #import "EnhancedMusic/EMPlayerController.h"
 
-// @interface FLEXBlockDescription
-// @property (nonatomic, readonly, nullable) NSMethodSignature *signature;
-// + (FLEXBlockDescription *)describing:(id)block;
-// @end
-
 %hook NowPlayingViewController
 - (void)controller:(id)controller defersResponseReplacement:(void (^)())origBlock {
 	/*
@@ -72,7 +67,17 @@
 		UIAction *playNextAction = [UIAction actionWithTitle:@"Play Next" image:[UIImage systemImageNamed:@"text.insert"] identifier:nil handler:^void (UIAction *sender) {
 			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 				EMPlayerController *controller = [[EMPlayerController alloc] initWithRequestController:requestController];
-				[controller moveItemAtIndex: indexPath.row toIndex: 0];
+				bool successful = [controller moveItemAtIndex: indexPath.row toIndex: 0];
+
+				dispatch_async(dispatch_get_main_queue(), ^{
+					UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];
+					if (successful) {
+						[generator notificationOccurred: UINotificationFeedbackTypeSuccess];
+					}
+					else {
+						[generator notificationOccurred: UINotificationFeedbackTypeError];
+					}
+				});
 			});
 		}];
 

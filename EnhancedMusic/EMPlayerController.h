@@ -3,13 +3,15 @@
 @interface EMPlayerController : NSObject {
 	NSCondition *continueLock;
 	bool shouldContinue;
+
+	bool commandSuccessful;
 }
 
 @property(nonatomic, retain) MPRequestResponseController *controller;
 
 - (instancetype)initWithRequestController:(MPRequestResponseController *)controller;
 
-- (void)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex;
+- (bool)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex;
 - (void)shuffleQueue;
 - (void)stopAtIndex:(NSInteger)index;
 

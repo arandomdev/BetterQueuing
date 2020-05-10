@@ -36,11 +36,16 @@
 	second wait:
 		Wait for the response to be replaced.
 	third wait:
-		Wait for a bit longer, just incase the tracklist is replaced again.
+		Wait for a bit longer, just incase the response is replaced again.
 
 	Note: This should be called in a background thread.
 */
-- (void)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex {
+- (bool)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex {
+	if (itemIndex == targetIndex) {
+		HBLogDebug(@"Not moving, indices identical");
+		return YES;
+	}
+
 	MPCPlayerResponseTracklist *tracklist = self.controller.response.tracklist;
 	MPCPlayerResponseItem *playingItem = tracklist.playingItem;
 	MPSectionedCollection *songs = tracklist.items;
@@ -48,18 +53,31 @@
 	itemIndex += 1 + playingItem.indexPath.row;
 	MPCPlayerResponseItem *item = [songs itemAtIndexPath:[NSIndexPath indexPathForRow:itemIndex inSection:0]];
 
-	NSInteger adjustedTargetIndex = targetIndex + playingItem.indexPath.row;
-	MPCPlayerResponseItem *targetItem = [songs itemAtIndexPath:[NSIndexPath indexPathForRow:adjustedTargetIndex inSection:0]];
+	targetIndex += playingItem.indexPath.row;
+	MPCPlayerResponseItem *targetItem = [songs itemAtIndexPath:[NSIndexPath indexPathForRow:targetIndex inSection:0]];
 
 	id<MPCPlayerReorderItemsCommand> reorderCommand = [tracklist reorderCommand];
+	if (![reorderCommand canMoveItem:item]) {
+		return NO;
+	}
 	id reorderRequest = [reorderCommand moveItem:item afterItem:targetItem];
 
 	// First wait
+	commandSuccessful = YES;
+
 	dispatch_semaphore_t completion = dispatch_semaphore_create(0);
-	[MPCPlayerChangeRequest performRequest:reorderRequest completion:^{
+	[MPCPlayerChangeRequest performRequest:reorderRequest completion:^void (NSError *error) {
+		if (error) {
+			HBLogError(@"Reorder Error: %@", error);
+			commandSuccessful = NO;
+		}
 		dispatch_semaphore_signal(completion);
 	}];
 	dispatch_semaphore_wait(completion, DISPATCH_TIME_NOW);
+
+	if (!commandSuccessful) {
+		return NO;
+	}
 
 	// Second wait
 	[continueLock lock];
@@ -73,14 +91,15 @@
 	// Third wait
 	[NSThread sleepForTimeInterval:0.1];
 
-	HBLogInfo(@"moved song: <%@> after: <%@>", item.metadataObject.song.title, targetItem.metadataObject.song.title);
+	HBLogDebug(@"moved song: <%@> after: <%@>", item.metadataObject.song.title, targetItem.metadataObject.song.title);
+	return YES;
 }
 
 // To shuffle the queue, we can basically turn shuffle off and on.
 - (void)shuffleQueue {
 	id<MPCPlayerShuffleCommand> shuffleOffCommand = [self.controller.response.tracklist shuffleCommand];
 	id offRequest = [shuffleOffCommand setShuffleType:0];
-	[MPCPlayerChangeRequest performRequest:offRequest completion:^{
+	[MPCPlayerChangeRequest performRequest:offRequest completion:^void (NSError *error) {
 		
 		id<MPCPlayerShuffleCommand> shuffleOnCommand = [self.controller.response.tracklist shuffleCommand];
 		id onRequest = [shuffleOnCommand setShuffleType:1];
@@ -91,6 +110,8 @@
 - (void)stopAtIndex:(NSInteger)index {
 	// include the current song
 	index++;
+
+	
 
 	MPSectionedCollection *tracklist = self.controller.response.tracklist.items;
 	NSInteger nowPlayingOffset = self.controller.response.tracklist.playingItem.indexPath.row;
