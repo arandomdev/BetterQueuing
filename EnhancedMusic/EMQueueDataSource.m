@@ -1,6 +1,9 @@
 #import "EMQueueDataSource.h"
+
 #import "../CustomHeaders/MediaPlaybackCore/MPCPlayerResponseItem.h"
+
 #import "../CustomHeaders/MediaPlayer/MPMediaItem.h"
+#import "../CustomHeaders/MediaPlayer/MPArtworkCatalog.h"
 
 @implementation EMQueueDataSource
 - (instancetype)initWithResponse:(MPCPlayerResponse *)response {
@@ -68,7 +71,26 @@
 	cell.detailTextLabel.text = song.artist;
 
 	UIImage *artwork = [song.artwork imageWithSize:song.artwork.bounds.size];
-	cell.imageView.image = artwork;
+	HBLogDebug(@"%@", artwork);
+	if (artwork) {
+		cell.imageView.image = artwork;
+	}
+	else {
+		MPArtworkCatalog *catalog = [song artworkCatalog];
+		HBLogDebug(@"requesting image");
+		[catalog requestImageWithCompletionHandler:^void (UIImage *image) {
+			HBLogDebug(@"%@", image);
+			if (image) {
+				HBLogDebug(@"Updating Image!");
+				dispatch_async(dispatch_get_main_queue(), ^{
+					UITableViewCell *oldCell = [tableView cellForRowAtIndexPath:indexPath];
+					if (oldCell) {
+						oldCell.imageView.image = image;
+					}
+				});
+			}
+		}];
+	}
 
 	return cell;
 }
