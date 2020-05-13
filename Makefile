@@ -1,7 +1,7 @@
 export FINALPACKAGE = 1
 
 export TARGET = iphone:clang:13.0:13.0
-export ARCHS = arm64
+export ARCHS = arm64 arm64e
 
 INSTALL_TARGET_PROCESSES = Music
 
