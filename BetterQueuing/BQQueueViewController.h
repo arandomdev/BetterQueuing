@@ -1,5 +1,5 @@
-#import "EMQueueDataSource.h"
-#import "EMPlayerController.h"
+#import "BQQueueDataSource.h"
+#import "BQPlayerController.h"
 
 #import "../CustomHeaders/MediaPlayer/MPRequestResponseController.h"
 

@@ -1,8 +1,8 @@
 #import "CustomHeaders/UIContextMenuConfiguration.h"
 #import "CustomHeaders/MediaPlaybackCore/MediaPlaybackCore.h"
 
-#import "EnhancedMusic/EMQueueViewController.h"
-#import "EnhancedMusic/EMPlayerController.h"
+#import "BetterQueuing/BQQueueViewController.h"
+#import "BetterQueuing/BQPlayerController.h"
 
 %hook NowPlayingViewController
 - (void)controller:(id)controller defersResponseReplacement:(void (^)())origBlock {
@@ -155,7 +155,6 @@
 %ctor {
 	HBLogDebug(@"Hooked");
 	%init(NowPlayingViewController = objc_getClass("MusicApplication.NowPlayingViewController"),NowPlayingQueueViewController = objc_getClass("MusicApplication.NowPlayingQueueViewController"));
-	// %init(NowPlayingQueueViewController = objc_getClass("MusicApplication.NowPlayingQueueViewController"));
 
 	// [NSNotificationCenter.defaultCenter addObserverForName:nil object:nil queue:nil usingBlock:^void (NSNotification *note) {
 	// 	HBLogDebug(@"%@, %@", note.name, note.object);

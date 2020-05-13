@@ -1,10 +1,11 @@
-#import "EMPlayerController.h"
+#import "BQPlayerController.h"
 
 #import "../CustomHeaders/MediaPlaybackCore/MediaPlaybackCore.h"
 
 #import "../CustomHeaders/MediaPlayer/MPMediaItem.h"
+#import "../CustomHeaders/MediaPlayer/MPMusicPlayerMediaItemQueueDescriptor.h"
 #import <MediaPlayer/MPMediaItemCollection.h>
-#import <MediaPlayer/MPMusicPlayerQueueDescriptor.h>
+#import <MediaPlayer/MPMusicPlayerController.h>
 
 @implementation EMPlayerController
 - (id)initWithRequestController:(MPRequestResponseController *)controller {
@@ -107,11 +108,14 @@
 	}];
 }
 
+/*
+	This method works by replacing the queue with songs from the playing item and to the
+	item at the given index. It also sets the playing item's elapsed time and the
+	shuffle mode so that it is a seamless change (With a small pause). 
+*/
 - (void)stopAtIndex:(NSInteger)index {
 	// include the current song
 	index++;
-
-	
 
 	MPSectionedCollection *tracklist = self.controller.response.tracklist.items;
 	NSInteger nowPlayingOffset = self.controller.response.tracklist.playingItem.indexPath.row;
@@ -129,6 +133,11 @@
 
 	MPMediaItemCollection *collection = [MPMediaItemCollection collectionWithItems:songs];
 	MPMusicPlayerMediaItemQueueDescriptor *queueDescriptor = [[MPMusicPlayerMediaItemQueueDescriptor alloc] initWithItemCollection:collection];
+
+	double currentTime = MPMusicPlayerController.systemMusicPlayer.currentPlaybackTime;
+	[queueDescriptor setStartTime:currentTime forItem:songs[0]];
+	queueDescriptor.shuffleType = 0;
+
 	MPCPlaybackIntent *intent = [MPCPlaybackIntent intentFromQueueDescriptor:queueDescriptor];
 	
 	id<MPCPlayerResetTracklistCommand> resetCommand = [self.controller.response.tracklist resetCommand];
