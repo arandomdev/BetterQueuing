@@ -1,7 +1,7 @@
 Package: com.haotestlabs.betterqueuing
 Name: BetterQueuing
 Depends: mobilesubstrate
-Version: 1.0.0.2
+Version: 1.0.2
 Architecture: iphoneos-arm
 Description: Adds better ways to queue songs in the Music App.
 Maintainer: ArandomDev <Haow6449@gmail.com>
