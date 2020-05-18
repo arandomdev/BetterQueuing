@@ -23,32 +23,51 @@
 	not pickup on queue changes when the shuffle action is used.
 */
 - (bool)shouldUpdateWithResponse:(MPCPlayerResponse *)response {
-	NSIndexPath *identifierPath = [
-		NSIndexPath
-		indexPathForRow: response.tracklist.playingItem.indexPath.row + 1
-		inSection: 0
-	];
-	MPCPlayerResponseItem *identifierSong = [response.tracklist.items itemAtIndexPath: identifierPath];
-	NSString *newIdentifer = identifierSong.contentItemIdentifier;
-
-	if ([newIdentifer isEqual:self.queueIdentifier]) {
-		return NO;
+	NSInteger identifierIndex = response.tracklist.playingItem.indexPath.row + 1;
+	if (
+		[self.songs numberOfSections] < 1
+		|| [self.songs numberOfItemsInSection: 0] <= identifierIndex
+	) {
+		return YES;
 	}
 	else {
-		return YES;
+		NSIndexPath *identifierPath = [
+			NSIndexPath
+			indexPathForRow: identifierIndex
+			inSection: 0
+		];
+		MPCPlayerResponseItem *identifierSong = [response.tracklist.items itemAtIndexPath: identifierPath];
+		NSString *newIdentifer = identifierSong.contentItemIdentifier;
+
+		if ([newIdentifer isEqual:self.queueIdentifier]) {
+			return NO;
+		}
+		else {
+			return YES;
+		}
 	}
 }
 
 - (void)updateWithResponse:(MPCPlayerResponse *)response {
 	self.songs = [response.tracklist.items copy];
 
-	NSIndexPath *identifierPath = [
-		NSIndexPath
-		indexPathForRow: response.tracklist.playingItem.indexPath.row + 1
-		inSection: 0
-	];
-	MPCPlayerResponseItem *identifierSong = [response.tracklist.items itemAtIndexPath: identifierPath];
-	self.queueIdentifier = identifierSong.contentItemIdentifier;
+	NSInteger identifierIndex = response.tracklist.playingItem.indexPath.row + 1;
+	if (
+		[self.songs numberOfSections] < 1
+		|| [self.songs numberOfItemsInSection: 0] <= identifierIndex
+	) {
+		self.queueIdentifier = @"";
+	}
+
+	else {
+		NSIndexPath *identifierPath = [
+			NSIndexPath
+			indexPathForRow: identifierIndex
+			inSection: 0
+		];
+		MPCPlayerResponseItem *identifierSong = [response.tracklist.items itemAtIndexPath: identifierPath];
+		self.queueIdentifier = identifierSong.contentItemIdentifier;
+	}
 }
 
 #pragma mark UITableViewDataSource
