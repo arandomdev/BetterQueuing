@@ -4,6 +4,46 @@
 #import "BetterQueuing/BQQueueViewController.h"
 #import "BetterQueuing/BQPlayerController.h"
 
+/*
+	0 Keep
+	1 Clear
+	2 Ask
+*/
+NSInteger AlwaysClearMode = 1;
+
+
+#pragma mark AlwaysClearTweak
+@interface UIAlertAction ()
+@property (nonatomic,copy) void (^handler)(UIAlertAction *action);
+@end
+
+%hook TabBarController
+- (void)presentViewController:(UIViewController *)viewControllerToPresent animated:(BOOL)flag completion:(void (^)(void))completion {
+	if ([viewControllerToPresent isKindOfClass:[UIAlertController class]]) {
+
+		UIAlertController *alertController = (UIAlertController *)viewControllerToPresent;
+		if (
+			[alertController.message containsString:@"playing"]
+			&& [alertController.message containsString:@"queue"]
+		) {
+			if (AlwaysClearMode != 2) {
+				UIAlertAction *clearAction = alertController.actions[AlwaysClearMode];
+				clearAction.handler(clearAction);
+				
+				if (completion) {
+					completion();
+				}
+				return;
+			}
+		}
+	}
+
+	%orig;
+}
+%end
+
+
+#pragma mark UpNextTweak
 %hook NowPlayingViewController
 - (void)controller:(id)controller defersResponseReplacement:(void (^)())origBlock {
 	/*
@@ -19,7 +59,6 @@
 	%orig(controller, injectedBlock);
 }
 %end
-
 
 %hook NowPlayingQueueViewController
 - (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
@@ -152,10 +191,46 @@
 }
 %end
 
-%ctor {
-	HBLogDebug(@"Hooked");
-	%init(NowPlayingViewController = objc_getClass("MusicApplication.NowPlayingViewController"),NowPlayingQueueViewController = objc_getClass("MusicApplication.NowPlayingQueueViewController"));
 
+#pragma mark Preferences
+static void ReloadPreferences() {
+	NSString *preferencesFilePath = [NSString stringWithFormat:@"/User/Library/Preferences/com.haotestlabs.betterqueuingpreferences.plist"];
+	
+	NSData *fileData = [NSData dataWithContentsOfFile:preferencesFilePath];
+	if (fileData) {
+		NSError *error = nil;
+		NSDictionary *preferences = [NSPropertyListSerialization propertyListWithData:fileData options:NSPropertyListImmutable format:nil error:&error];
+		
+		if (error) {
+			HBLogError(@"Unable to read preference file, Error: %@", error);
+		}
+		else {
+			if (preferences[@"AlwaysClearMode"]) {
+				AlwaysClearMode = [preferences[@"AlwaysClearMode"] intValue];
+			}
+		}
+	}
+}
+
+%ctor {
+	HBLogDebug(@"Hooked"); // TODO: remove
+	
+	%init(NowPlayingViewController=objc_getClass("MusicApplication.NowPlayingViewController"),
+		NowPlayingQueueViewController=objc_getClass("MusicApplication.NowPlayingQueueViewController"),
+		TabBarController=objc_getClass("MusicApplication.TabBarController")
+	);
+
+	ReloadPreferences();
+	CFNotificationCenterAddObserver(
+		CFNotificationCenterGetDarwinNotifyCenter(),
+		NULL,
+		(CFNotificationCallback)ReloadPreferences,
+		CFSTR("com.haotestlabs.betterqueuingpreferences.reload"),
+		NULL,
+		CFNotificationSuspensionBehaviorCoalesce
+	);
+
+	// TODO: remove
 	// [NSNotificationCenter.defaultCenter addObserverForName:nil object:nil queue:nil usingBlock:^void (NSNotification *note) {
 	// 	HBLogDebug(@"%@, %@", note.name, note.object);
 	// }];
