@@ -4,11 +4,11 @@ include $(THEOS)/makefiles/common.mk
 
 BUNDLE_NAME = BetterQueuingPreferences
 
-BetterQueuingPreferences_FILES = BQPRootListController.m
+BetterQueuingPreferences_FILES = BQPRootListController.m BQPNumberPadCell.m
 BetterQueuingPreferences_INSTALL_PATH = /Library/PreferenceBundles
 BetterQueuingPreferences_FRAMEWORKS = UIKit
 BetterQueuingPreferences_PRIVATE_FRAMEWORKS = Preferences
-BetterQueuingPreferences_CFLAGS = -fobjc-arc
+BetterQueuingPreferences_CFLAGS = -fobjc-arc -D__USE_CF_LOG
 
 include $(THEOS_MAKE_PATH)/bundle.mk
 

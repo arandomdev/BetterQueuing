@@ -2,21 +2,25 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>title</key>
+	<string>BetterQueuing</string>
 	<key>items</key>
 	<array>
+		<!-- Always Clear -->
 		<dict>
 			<key>cell</key>
 			<string>PSGroupCell</string>
 			<key>label</key>
 			<string>Always Clear Mode</string>
 			<key>footerText</key>
-			<string>Automatically respond to the "Would you like to keep or clear..." prompt.</string>
+			<string>Automatically respond to the "Would you like to keep or clear..." prompt. The default is "Ask".
+			</string>
 		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSSegmentCell</string>
 			<key>default</key>
-			<integer>1</integer>
+			<integer>2</integer>
 			<key>defaults</key>
 			<string>com.haotestlabs.betterqueuingpreferences</string>
 			<key>PostNotification</key>
@@ -36,8 +40,96 @@
 				<string>Ask</string>
 			</array>
 		</dict>
+
+		<!-- Custom Queue Count -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>Custom Queue Count</string>
+			<key>footerText</key>
+			<string>Change how many items are available in the queue when using shuffle or playing from a playlist. Setting a really high number can make the app less responsive. The default is 99.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>label</key>
+			<string>Enabled</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.haotestlabs.betterqueuingpreferences</string>
+			<key>PostNotification</key>
+			<string>com.haotestlabs.betterqueuingpreferences.reload</string>
+			<key>key</key>
+			<string>CustomQueueCountEnabled</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSEditTextCell</string>
+			<key>cellClass</key>
+			<string>BQPNumberPadCell</string>
+			<key>label</key>
+			<string>Max Count</string>
+			<key>isNumeric</key>
+			<true/>
+			<key>default</key>
+			<integer>99</integer>
+			<key>defaults</key>
+			<string>com.haotestlabs.betterqueuingpreferences</string>
+			<key>PostNotification</key>
+			<string>com.haotestlabs.betterqueuingpreferences.reload</string>
+			<key>key</key>
+			<string>CustomQueueCount</string>
+		</dict>
+
+		<!-- Hide Controls -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>Hide Controls</string>
+			<key>footerText</key>
+			<string>Hides the controls when you're scrolling in the queue menu.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>label</key>
+			<string>Enabled</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.haotestlabs.betterqueuingpreferences</string>
+			<key>PostNotification</key>
+			<string>com.haotestlabs.betterqueuingpreferences.reload</string>
+			<key>key</key>
+			<string>HideControlsEnabled</string>
+		</dict>
+
+		<!-- Better Tab Shortcut -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>Better Status Bar Shortcut</string>
+			<key>footerText</key>
+			<string>Changes the "go to top" shortcut when the status bar is tapped when in the queue menu. Essentially, it first goes to the "playing next" section, and then the "history" section.</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>label</key>
+			<string>Enabled</string>
+			<key>default</key>
+			<false/>
+			<key>defaults</key>
+			<string>com.haotestlabs.betterqueuingpreferences</string>
+			<key>PostNotification</key>
+			<string>com.haotestlabs.betterqueuingpreferences.reload</string>
+			<key>key</key>
+			<string>BetterTabShortcutEnabled</string>
+		</dict>
 	</array>
-	<key>title</key>
-	<string>BetterQueuing</string>
 </dict>
 </plist>

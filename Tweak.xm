@@ -4,19 +4,48 @@
 #import "BetterQueuing/BQQueueViewController.h"
 #import "BetterQueuing/BQPlayerController.h"
 
-/*
-	0 Keep
-	1 Clear
-	2 Ask
-*/
-NSInteger AlwaysClearMode = 1;
+
+BOOL CustomQueueCountEnabled = NO;
+NSInteger CustomQueueCount = 99;
+
+NSInteger AlwaysClearMode = 2;
+
+BOOL HideControlsEnabled = NO;
+
+BOOL BetterTabShortcutEnabled = NO;
 
 
-#pragma mark AlwaysClearTweak
+typedef struct {
+	long long reverseCount;
+	long long forwardCount;
+} TracklistRange;
+
 @interface UIAlertAction ()
 @property (nonatomic,copy) void (^handler)(UIAlertAction *action);
 @end
 
+@interface NowPlayingQueueViewController
+- (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point;
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(CGPoint *)targetContentOffset;
+- (BOOL)scrollViewShouldScrollToTop:(UIScrollView *)scrollView;
+@end
+
+
+// Custom Queue Count
+%hook MPCPlayerRequest
+-(TracklistRange)tracklistRange {
+	TracklistRange range = %orig();
+
+	if (CustomQueueCountEnabled && range.forwardCount > 90) {
+		range.forwardCount = CustomQueueCount;
+	}
+
+	return range;
+}
+%end
+
+
+// Always Clear
 %hook TabBarController
 - (void)presentViewController:(UIViewController *)viewControllerToPresent animated:(BOOL)flag completion:(void (^)(void))completion {
 	if ([viewControllerToPresent isKindOfClass:[UIAlertController class]]) {
@@ -43,7 +72,6 @@ NSInteger AlwaysClearMode = 1;
 %end
 
 
-#pragma mark UpNextTweak
 %hook NowPlayingViewController
 - (void)controller:(id)controller defersResponseReplacement:(void (^)())origBlock {
 	/*
@@ -61,6 +89,7 @@ NSInteger AlwaysClearMode = 1;
 %end
 
 %hook NowPlayingQueueViewController
+// Up Next Menu Actions
 - (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
 	/*
 		This is method is called when ever a song cell is long pressed.
@@ -144,6 +173,63 @@ NSInteger AlwaysClearMode = 1;
 
 	return contextConfig;
 }
+
+// Hide Controls
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView withVelocity:(CGPoint)velocity targetContentOffset:(CGPoint *)targetContentOffset {
+	if (!HideControlsEnabled) {
+		%orig();
+		return;
+	}
+
+	/*
+		velocity:
+			positive -> scroll down
+			negative -> scroll up
+	*/
+
+	if ([scrollView isKindOfClass:[UICollectionView class]]) {
+		UICollectionView *collectionView = (UICollectionView *)scrollView;
+		NSSet *visibleSections = [NSSet setWithArray:[collectionView.indexPathsForVisibleItems valueForKey:@"section"]];
+
+		/*
+			Hide the controls if the user is in the history section and scrolls down.
+			Hide the controls if the user is in the playing next section and scrolls up.
+		*/
+		if (([visibleSections containsObject:@0] && velocity.y > 0) || ([visibleSections containsObject:@1] && velocity.y < 0)) {
+			velocity.y = -1 * velocity.y;
+			%orig(scrollView, velocity, targetContentOffset);
+			return;
+		}
+	}
+
+	%orig();
+}
+
+// Better Tab Shortcut
+%new
+- (BOOL)scrollViewShouldScrollToTop:(UIScrollView *)scrollView {
+	if (BetterTabShortcutEnabled && [scrollView isKindOfClass:[UICollectionView class]]) {
+		UICollectionView *collectionView = (UICollectionView *)scrollView;
+
+		NSSet *visibleSections = [NSSet setWithArray:[collectionView.indexPathsForVisibleItems valueForKey:@"section"]];
+		
+		CGPoint temp = CGPointMake(0, 0);
+		if ([visibleSections containsObject:@0]) {
+			// Hide the controls
+			[self scrollViewWillEndDragging:scrollView withVelocity:CGPointMake(0, 1) targetContentOffset:&temp];
+			return YES;
+		}
+		else {
+			// Show the controls
+			[self scrollViewWillEndDragging:scrollView withVelocity:CGPointMake(0, -1) targetContentOffset:&temp];
+
+			NSIndexPath *path = [NSIndexPath indexPathForRow:0 inSection:1];
+			[collectionView scrollToItemAtIndexPath:path atScrollPosition:UICollectionViewScrollPositionTop animated:YES];
+			return NO;
+		}
+	}
+	return YES;
+}
 %end
 
 %hook UIContextMenuInteraction
@@ -192,7 +278,6 @@ NSInteger AlwaysClearMode = 1;
 %end
 
 
-#pragma mark Preferences
 static void ReloadPreferences() {
 	NSString *preferencesFilePath = [NSString stringWithFormat:@"/User/Library/Preferences/com.haotestlabs.betterqueuingpreferences.plist"];
 	
@@ -206,8 +291,24 @@ static void ReloadPreferences() {
 		}
 		else {
 			if (preferences[@"AlwaysClearMode"]) {
-				AlwaysClearMode = [preferences[@"AlwaysClearMode"] intValue];
+				AlwaysClearMode = [preferences[@"AlwaysClearMode"] integerValue];
 			}
+			if (preferences[@"CustomQueueCountEnabled"]) {
+				CustomQueueCountEnabled = [preferences[@"CustomQueueCountEnabled"] boolValue];
+			}
+			if (preferences[@"CustomQueueCount"]) {
+				CustomQueueCount = [preferences[@"CustomQueueCount"] integerValue];
+			}
+			if (preferences[@"HideControlsEnabled"]) {
+				HideControlsEnabled = [preferences[@"HideControlsEnabled"] boolValue];
+			}
+			if (preferences[@"BetterTabShortcutEnabled"]) {
+				BetterTabShortcutEnabled = [preferences[@"BetterTabShortcutEnabled"] boolValue];
+			}
+			// TODO: remove
+			// if (preferences[@""]) {
+			// 	 = [preferences[@""] intValue];
+			// }
 		}
 	}
 }
