@@ -232,6 +232,13 @@ typedef struct {
 }
 %end
 
+%hook ContainerDetailSongsViewController
+- (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
+	HBLogDebug(@"Hello!!!");
+	return %orig();
+}
+%end
+
 %hook UIContextMenuInteraction
 - (void)_updateVisibleMenuWithBlock:(UIMenu *(^)(UIMenu *oldMenu))originalBlock {
 	/*
@@ -313,13 +320,23 @@ static void ReloadPreferences() {
 	}
 }
 
-%ctor {
-	HBLogDebug(@"Hooked"); // TODO: remove
-	
+%group AppHook
+%hookf(int, UIApplicationMain, int argc, char * _Nullable *argv, NSString *principalClassName, NSString *delegateClassName) {
+	HBLogDebug(@"Load App");
 	%init(NowPlayingViewController=objc_getClass("MusicApplication.NowPlayingViewController"),
 		NowPlayingQueueViewController=objc_getClass("MusicApplication.NowPlayingQueueViewController"),
-		TabBarController=objc_getClass("MusicApplication.TabBarController")
+		TabBarController=objc_getClass("MusicApplication.TabBarController"),
+		ContainerDetailSongsViewController=objc_getClass("MusicApplication.ContainerDetailSongsViewController")
 	);
+	return %orig();
+}
+%end
+
+
+%ctor {
+	HBLogDebug(@"Hooked"); // TODO: remove
+
+	%init(AppHook);
 
 	ReloadPreferences();
 	CFNotificationCenterAddObserver(
