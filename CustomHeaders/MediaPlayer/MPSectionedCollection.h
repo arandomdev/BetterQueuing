@@ -3,5 +3,6 @@
 @interface MPSectionedCollection : NSObject <NSCopying>
 -(long long)numberOfSections;
 -(long long)numberOfItemsInSection:(long long)section;
--(MPCPlayerResponseItem *)itemAtIndexPath:(NSIndexPath *)indexPath;
+-(id)itemAtIndexPath:(NSIndexPath *)indexPath;
+-(NSArray *)allItems;
 @end

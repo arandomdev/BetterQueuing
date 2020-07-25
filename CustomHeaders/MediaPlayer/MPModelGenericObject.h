@@ -1,5 +1,6 @@
 #import "MPModelSong.h"
+#import "MPModelObject.h"
 
-@interface MPModelGenericObject
+@interface MPModelGenericObject : MPModelObject
 @property (nonatomic,retain) MPModelSong *song;
 @end

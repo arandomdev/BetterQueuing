@@ -5,8 +5,10 @@
 #import "../CustomHeaders/MediaPlayer/MPMediaItem.h"
 #import "../CustomHeaders/MediaPlayer/MPConcreteMediaItemArtwork.h"
 
+// TODO: re-code with header
+
 @implementation EMQueueDataSource
-- (instancetype)initWithResponse:(MPCPlayerResponse *)response {
+- (instancetype)initWithCollection:(MPSectionedCollection *)collection {
 	self = [super init];
 	if (self) {
 		[self updateWithResponse:response];
@@ -16,40 +18,31 @@
 
 /*
 	The data source should update it's data only when the items in the
-	queue changes. To do this, we can save the content identifier for a
-	song in the queue and compare it to the provided tracklist.
-
-	The song that we use should not be the playing song because it would
-	not pickup on queue changes when the shuffle action is used.
+	queue changes. To do this, we can compare all the items in the
+	given response to the items we have currently, using the
+	persistantID as a key. 
 */
-- (bool)shouldUpdateWithResponse:(MPCPlayerResponse *)response {
-	NSInteger identifierIndex = response.tracklist.playingItem.indexPath.row + 1;
-	if (
-		[self.songs numberOfSections] < 1
-		|| [self.songs numberOfItemsInSection: 0] <= identifierIndex
-	) {
-		return YES;
+- (bool)shouldUpdateWithCollection:(MPSectionedCollection *)collection {
+	BOOL isDifferent = NO;
+	NSArray<MPCPlayerResponseItem *> *givenItems = [collection allItems];
+	NSArray<MPCPlayerResponseItem *> *targetItems = [self.songs allItems];
+	if (givenItems.count != targetItems.count) {
+		isDifferent = YES;
 	}
 	else {
-		NSIndexPath *identifierPath = [
-			NSIndexPath
-			indexPathForRow: identifierIndex
-			inSection: 0
-		];
-		MPCPlayerResponseItem *identifierSong = [response.tracklist.items itemAtIndexPath: identifierPath];
-		NSString *newIdentifer = identifierSong.contentItemIdentifier;
-
-		if ([newIdentifer isEqual:self.queueIdentifier]) {
-			return NO;
-		}
-		else {
-			return YES;
+		for (int i = 0; i < givenItems.count; i++) {
+			if (givenItems[i].metadataObject.identifiers.persistentID != targetItems[i].metadataObject.identifiers.persistentID) {
+				isDifferent = YES;
+				break;
+			}
 		}
 	}
+
+	return isDifferent;
 }
 
-- (void)updateWithResponse:(MPCPlayerResponse *)response {
-	self.songs = [response.tracklist.items copy];
+- (void)updateWithCollection:(MPSectionedCollection *)collection {
+	self.songs = [collection copy];
 
 	NSInteger identifierIndex = response.tracklist.playingItem.indexPath.row + 1;
 	if (

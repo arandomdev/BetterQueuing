@@ -1,13 +1,10 @@
-#import "../CustomHeaders/MediaPlaybackCore/MPCPlayerResponse.h"
+#import "../CustomHeaders/MediaPlayer/MPSectionedCollection.h"
 
-@interface EMQueueDataSource : NSObject <UITableViewDataSource>
-@property (nonatomic, retain) MPSectionedCollection *songs;
-@property (nonatomic, retain) NSString *queueIdentifier;
+@interface BQQueueDataSource : NSObject <UITableViewDataSource>
 
-- (instancetype)initWithResponse:(MPCPlayerResponse *)response;
-
-- (bool)shouldUpdateWithResponse:(MPCPlayerResponse *)response;
-- (void)updateWithResponse:(MPCPlayerResponse *)response;
+- (instancetype)initWithCollection:(MPSectionedCollection *)collection;
+- (BOOL)shouldUpdateWithCollection:(MPSectionedCollection *)collection;
+- (void)updateWithCollection:(MPSectionedCollection *)collection;
 
 #pragma mark UITableViewDataSource
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section;
