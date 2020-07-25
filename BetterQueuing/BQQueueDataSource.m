@@ -23,6 +23,8 @@
 	not pickup on queue changes when the shuffle action is used.
 */
 - (bool)shouldUpdateWithResponse:(MPCPlayerResponse *)response {
+	HBLogDebug(@"%llu", response.tracklist.playingItem.hash);
+
 	NSInteger identifierIndex = response.tracklist.playingItem.indexPath.row + 1;
 	if (
 		[self.songs numberOfSections] < 1
