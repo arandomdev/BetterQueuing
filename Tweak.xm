@@ -81,7 +81,7 @@ typedef struct {
 	*/
 	void (^injectedBlock)() = ^void() {
 		origBlock();
-		HBLogDebug(@"Response replaced");
+		// HBLogDebug(@"Response replaced"); // TODO: remove
 		[NSNotificationCenter.defaultCenter postNotificationName:@"BQResponseReplacedNotification" object:self];
 	};
 	%orig(controller, injectedBlock);

@@ -12,6 +12,7 @@
 - (instancetype)initWithRequestController:(MPRequestResponseController *)controller;
 
 - (bool)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex;
+- (BOOL)moveItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices;
 - (void)shuffleQueue;
 - (void)stopAtIndex:(NSInteger)index;
 

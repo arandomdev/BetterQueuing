@@ -88,6 +88,11 @@
 			}
 			targetIndex++;
 		}
+		// NSMutableArray<NSNumber *> *targetItems = [NSMutableArray arrayWithCapacity:selectedPaths.count];
+		// for (NSIndexPath *indexPath in selectedPaths) {
+		// 	[targetItems addObject:@(indexPath.row+1)];
+		// }
+		// [self.playerController moveItemsToPlayNext:targetItems];
 
 		dispatch_async(dispatch_get_main_queue(), ^(void) {
 			UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];

@@ -4,4 +4,6 @@
 @property (nonatomic,readonly) MPModelGenericObject *metadataObject;
 @property (nonatomic,readonly) NSIndexPath *indexPath;
 @property (nonatomic,readonly) NSString *contentItemIdentifier;
+
+-(id)remove;
 @end

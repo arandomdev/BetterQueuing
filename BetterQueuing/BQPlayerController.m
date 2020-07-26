@@ -93,6 +93,35 @@
 	return YES;
 }
 
+- (BOOL)moveItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices {
+	MPSectionedCollection *allItems = self.controller.response.tracklist.items;
+
+	NSMutableArray<MPCPlayerResponseItem *> *targetItems = [NSMutableArray arrayWithCapacity:itemsIndices.count];
+	for (NSNumber *i in itemsIndices) {
+		HBLogDebug(@"%@", i);
+		[targetItems addObject:[allItems itemAtIndexPath:[allItems indexPathForGlobalIndex:i.integerValue]]];
+	}
+
+	// remove items from the queue
+	for (MPCPlayerResponseItem *item in targetItems) {
+		id removeRequest = [item remove];
+		[MPCPlayerChangeRequest performRequest:removeRequest completion:^void (NSError *error) {
+			if (error) {
+				HBLogError(@"Reorder Error: %@", error);
+				commandSuccessful = NO;
+			}
+			else {
+				HBLogDebug(@"Removed: %@", item.metadataObject.song.title);
+			}
+		}];
+	}
+
+	// add the items back to be played next
+	
+
+	return YES;
+}
+
 // To shuffle the queue, we can basically turn shuffle off and on.
 - (void)shuffleQueue {
 	id<MPCPlayerShuffleCommand> shuffleOffCommand = [self.controller.response.tracklist shuffleCommand];
