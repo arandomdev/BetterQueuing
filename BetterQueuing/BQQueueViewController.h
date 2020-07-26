@@ -3,13 +3,13 @@
 
 #import "../CustomHeaders/MediaPlayer/MPRequestResponseController.h"
 
-@interface EMQueueViewController : UINavigationController
+@interface BQQueueViewController : UINavigationController
 
 @property (nonatomic, retain) MPRequestResponseController *requestController;
-@property (nonatomic, retain) EMPlayerController *playerController;
+@property (nonatomic, retain) BQPlayerController *playerController;
 
 @property (nonatomic, retain) UITableView *tableView;
-@property (nonatomic, retain) EMQueueDataSource *dataSource;
+@property (nonatomic, retain) BQQueueDataSource *dataSource;
 
 - (instancetype)initWithRequestController:(MPRequestResponseController *)requestController;
 

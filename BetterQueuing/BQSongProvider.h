@@ -1,10 +1,10 @@
-#import "../CustomHeaders/MediaPlayer/MPSectonedCollection.h"
+#import "../CustomHeaders/MediaPlayer/MPSectionedCollection.h"
 #import "../CustomHeaders/MediaPlayer/MPModelSong.h"
 
 @interface BQSongProvider : NSObject
-@property (nonatomic, retain) MPSectonedCollection *songs;
+@property (nonatomic, retain) MPSectionedCollection *songCollection;
 
-- (instancetype)initWithSongs:(MPSectonedCollection *)songs;
-- (NSArray<MPModelSong *> *)allItems;
-- (MPModelSong *)songAtIndexPath:(NSIndexPath *)indexPath;
+- (instancetype)initWithSongs:(MPSectionedCollection *)songs;
+- (NSArray<MPModelSong *> *)allSongs;
+- (MPModelSong *)songAtIndex:(NSInteger)index;
 @end

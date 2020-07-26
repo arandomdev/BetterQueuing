@@ -81,8 +81,8 @@ typedef struct {
 	*/
 	void (^injectedBlock)() = ^void() {
 		origBlock();
-
-		[NSNotificationCenter.defaultCenter postNotificationName:@"EMResponseReplacedNotification" object:self];
+		HBLogDebug(@"Response replaced");
+		[NSNotificationCenter.defaultCenter postNotificationName:@"BQResponseReplacedNotification" object:self];
 	};
 	%orig(controller, injectedBlock);
 }
@@ -134,7 +134,7 @@ typedef struct {
 		// This action will move the long pressed item to the top of the playing queue.
 		UIAction *playNextAction = [UIAction actionWithTitle:@"Play Next" image:[UIImage systemImageNamed:@"text.insert"] identifier:nil handler:^void (UIAction *sender) {
 			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-				EMPlayerController *controller = [[EMPlayerController alloc] initWithRequestController:requestController];
+				BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:requestController];
 				bool successful = [controller moveItemAtIndex: indexPath.row toIndex: 0];
 
 				dispatch_async(dispatch_get_main_queue(), ^{
@@ -151,14 +151,14 @@ typedef struct {
 
 		UIAction *stopHereAction = [UIAction actionWithTitle:@"Stop Here" image:[UIImage systemImageNamed:@"arrow.down.to.line"] identifier:nil handler:^void (UIAction *sender) {
 			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-				EMPlayerController *controller = [[EMPlayerController alloc] initWithRequestController:requestController];
+				BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:requestController];
 				[controller stopAtIndex:indexPath.row];
 			});
 		}];
 
 		// This action will display the song picker
 		UIAction *queueSongsAction = [UIAction actionWithTitle:@"Queue Songs" image:[UIImage systemImageNamed:@"list.dash"] identifier:nil handler:^void (UIAction *sender) {
-			EMQueueViewController *picker = [[EMQueueViewController alloc] initWithRequestController:requestController];
+			BQQueueViewController *picker = [[BQQueueViewController alloc] initWithRequestController:requestController];
 			[nowPlayingController presentViewController:picker animated:YES completion:nil];
 		}];
 		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.StickyMenu" options:UIMenuOptionsDisplayInline children:@[playNextAction, stopHereAction, queueSongsAction]];
@@ -322,7 +322,7 @@ static void ReloadPreferences() {
 
 %group AppHook
 %hookf(int, UIApplicationMain, int argc, char * _Nullable *argv, NSString *principalClassName, NSString *delegateClassName) {
-	HBLogDebug(@"Load App");
+	HBLogDebug(@"Load App"); // TODO: remove
 	%init(NowPlayingViewController=objc_getClass("MusicApplication.NowPlayingViewController"),
 		NowPlayingQueueViewController=objc_getClass("MusicApplication.NowPlayingQueueViewController"),
 		TabBarController=objc_getClass("MusicApplication.TabBarController"),

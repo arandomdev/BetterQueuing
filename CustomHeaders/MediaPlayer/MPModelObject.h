@@ -1,5 +1,5 @@
 #include "MPIdentifierSet.h"
 
-@interface MPModelObject
+@interface MPModelObject : NSObject
 @property (nonatomic,copy,readonly) MPIdentifierSet *identifiers;
 @end

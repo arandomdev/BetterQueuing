@@ -1,6 +1,6 @@
 #import "BQQueueViewController.h"
 
-@implementation EMQueueViewController
+@implementation BQQueueViewController
 - (instancetype)initWithRequestController:(MPRequestResponseController *)requestController {
 	self = [super init];
 	if (self) {
@@ -8,18 +8,18 @@
 		[requestController beginAutomaticResponseLoading];
 		self.requestController = requestController;
 
-		self.playerController = [[EMPlayerController alloc] initWithRequestController:requestController];
+		self.playerController = [[BQPlayerController alloc] initWithRequestController:requestController];
 
 		// create the tableView
 		UITableViewController *tableViewController = [[UITableViewController alloc] initWithStyle:UITableViewStylePlain];
 		self.tableView = tableViewController.tableView;
 
-		self.dataSource = [[EMQueueDataSource alloc] initWithResponse:requestController.response];
+		self.dataSource = [[BQQueueDataSource alloc] initWithCollection:requestController.response.tracklist.items];
 		self.tableView.dataSource = self.dataSource;
 		self.tableView.allowsMultipleSelection = YES;
 
 		// listen to response changes to react to changes in the queue
-		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(responseChanged:) name:@"EMResponseReplacedNotification" object:nil];
+		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(responseChanged:) name:@"BQResponseReplacedNotification" object:nil];
 
 		// define the navigation view
 		self.modalPresentationStyle = UIModalPresentationFullScreen;
@@ -41,9 +41,9 @@
 }
 
 - (void)responseChanged:(NSNotification *)note {
-	if ([self.dataSource shouldUpdateWithResponse:self.requestController.response]) {
+	if ([self.dataSource shouldUpdateWithCollection:self.requestController.response.tracklist.items]) {
 		dispatch_async(dispatch_get_main_queue(), ^{
-			[self.dataSource updateWithResponse:self.requestController.response];
+			[self.dataSource updateWithCollection:self.requestController.response.tracklist.items];
 			[self.tableView reloadData];
 
 			if ([self.tableView numberOfRowsInSection:0] != 0) {
@@ -83,7 +83,7 @@
 		bool allSuccessful = YES;
 		int targetIndex = 0;
 		for (NSIndexPath *indexPath in selectedPaths) {
-			if (![self.playerController moveItemAtIndex:indexPath.row toIndex:targetIndex]) {
+			if (![self.playerController moveItemAtIndex:(indexPath.row + 1) toIndex:targetIndex]) {
 				allSuccessful = NO;
 			}
 			targetIndex++;

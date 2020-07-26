@@ -1,6 +1,6 @@
 #import "../CustomHeaders/MediaPlayer/MPRequestResponseController.h"
 
-@interface EMPlayerController : NSObject {
+@interface BQPlayerController : NSObject {
 	NSCondition *continueLock;
 	bool shouldContinue;
 

@@ -7,7 +7,7 @@
 #import <MediaPlayer/MPMediaItemCollection.h>
 #import <MediaPlayer/MPMusicPlayerController.h>
 
-@implementation EMPlayerController
+@implementation BQPlayerController
 - (id)initWithRequestController:(MPRequestResponseController *)controller {
 	self = [super init];
 	if (self) {
@@ -17,7 +17,7 @@
 		continueLock = [[NSCondition alloc] init];
 
 		// listen to response changes
-		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(responseChanged:) name:@"EMResponseReplacedNotification" object:nil];
+		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(responseChanged:) name:@"BQResponseReplacedNotification" object:nil];
 	}
 	return self;
 }
@@ -39,23 +39,20 @@
 	third wait:
 		Wait for a bit longer, just incase the response is replaced again.
 
-	Note: This should be called in a background thread.
+	Note: This should be called in a background thread, and the zeroth index
+	is the currently playing item.
 */
 - (bool)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex {
 	if (itemIndex == targetIndex) {
-		HBLogDebug(@"Not moving, indices identical");
+		HBLogDebug(@"Not moving, indices identical"); // TODO: remove
 		return YES;
 	}
 
 	MPCPlayerResponseTracklist *tracklist = self.controller.response.tracklist;
-	MPCPlayerResponseItem *playingItem = tracklist.playingItem;
 	MPSectionedCollection *songs = tracklist.items;
 
-	itemIndex += 1 + playingItem.indexPath.row;
-	MPCPlayerResponseItem *item = [songs itemAtIndexPath:[NSIndexPath indexPathForRow:itemIndex inSection:0]];
-
-	targetIndex += playingItem.indexPath.row;
-	MPCPlayerResponseItem *targetItem = [songs itemAtIndexPath:[NSIndexPath indexPathForRow:targetIndex inSection:0]];
+	MPCPlayerResponseItem *item = [songs itemAtIndexPath:[songs indexPathForGlobalIndex:itemIndex]];
+	MPCPlayerResponseItem *targetItem = [songs itemAtIndexPath:[songs indexPathForGlobalIndex:targetIndex]];
 
 	id<MPCPlayerReorderItemsCommand> reorderCommand = [tracklist reorderCommand];
 	if (![reorderCommand canMoveItem:item]) {

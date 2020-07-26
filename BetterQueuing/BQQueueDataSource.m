@@ -7,11 +7,11 @@
 
 // TODO: re-code with header
 
-@implementation EMQueueDataSource
+@implementation BQQueueDataSource
 - (instancetype)initWithCollection:(MPSectionedCollection *)collection {
 	self = [super init];
 	if (self) {
-		[self updateWithResponse:response];
+		self.songs = [[BQSongProvider alloc] initWithSongs:collection];
 	}
 	return self;
 }
@@ -19,19 +19,20 @@
 /*
 	The data source should update it's data only when the items in the
 	queue changes. To do this, we can compare all the items in the
-	given response to the items we have currently, using the
-	persistantID as a key. 
+	given collection to the items we have currently, using the
+	persistentID as a key. 
 */
 - (bool)shouldUpdateWithCollection:(MPSectionedCollection *)collection {
 	BOOL isDifferent = NO;
-	NSArray<MPCPlayerResponseItem *> *givenItems = [collection allItems];
-	NSArray<MPCPlayerResponseItem *> *targetItems = [self.songs allItems];
-	if (givenItems.count != targetItems.count) {
+	NSArray<MPModelSong *> *newSongs = [[[BQSongProvider alloc] initWithSongs:collection] allSongs];
+	NSArray<MPModelSong *> *currentSongs = [self.songs allSongs];
+
+	if (newSongs.count != currentSongs.count) {
 		isDifferent = YES;
 	}
 	else {
-		for (int i = 0; i < givenItems.count; i++) {
-			if (givenItems[i].metadataObject.identifiers.persistentID != targetItems[i].metadataObject.identifiers.persistentID) {
+		for (int i = 0; i < newSongs.count; i++) {
+			if (newSongs[i].identifiers.persistentID != currentSongs[i].identifiers.persistentID) {
 				isDifferent = YES;
 				break;
 			}
@@ -42,41 +43,24 @@
 }
 
 - (void)updateWithCollection:(MPSectionedCollection *)collection {
-	self.songs = [collection copy];
-
-	NSInteger identifierIndex = response.tracklist.playingItem.indexPath.row + 1;
-	if (
-		[self.songs numberOfSections] < 1
-		|| [self.songs numberOfItemsInSection: 0] <= identifierIndex
-	) {
-		self.queueIdentifier = @"";
-	}
-
-	else {
-		NSIndexPath *identifierPath = [
-			NSIndexPath
-			indexPathForRow: identifierIndex
-			inSection: 0
-		];
-		MPCPlayerResponseItem *identifierSong = [response.tracklist.items itemAtIndexPath: identifierPath];
-		self.queueIdentifier = identifierSong.contentItemIdentifier;
-	}
+	self.songs = [[BQSongProvider alloc] initWithSongs:collection];
 }
 
 #pragma mark UITableViewDataSource
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-	// Subtracted by one because the tracklist contains the playing item.
-	return [self.songs numberOfItemsInSection:0] - 1;
+	// Subtracted by one because the collection contains the playing item.
+	return self.songs.songCollection.totalItemCount - 1;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-	UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"EMQueueSongCell"];
+	UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"BQQueueSongCell"];
 	if (!cell) {
-		cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"EMQueueSongCell"];
+		cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"BQQueueSongCell"];
 	}
 
-	NSIndexPath *modelSongPath = [NSIndexPath indexPathForRow: indexPath.row + 1 inSection: 0];
-	MPModelSong *modelSong = [self.songs itemAtIndexPath:modelSongPath].metadataObject.song;
+	// to account for the now playing item
+	NSInteger realIndex = indexPath.row + 1;
+	MPModelSong *modelSong = [self.songs songAtIndex:realIndex];
 	MPMediaItem *song = [MPMediaItem itemFromSong:modelSong];
 	
 	cell.textLabel.text = song.title;
