@@ -1,4 +1,4 @@
-#import "BQQueueDataSource.h"
+#import "BQPickerDataSource.h"
 #import "BQPlayerController.h"
 
 #import "../CustomHeaders/MediaPlayer/MPRequestResponseController.h"
@@ -9,7 +9,7 @@
 @property (nonatomic, retain) BQPlayerController *playerController;
 
 @property (nonatomic, retain) UITableView *tableView;
-@property (nonatomic, retain) BQQueueDataSource *dataSource;
+@property (nonatomic, retain) BQPickerDataSource *dataSource;
 
 - (instancetype)initWithRequestController:(MPRequestResponseController *)requestController;
 

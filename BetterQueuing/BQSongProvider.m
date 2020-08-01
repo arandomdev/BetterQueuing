@@ -1,4 +1,5 @@
 #import "BQSongProvider.h"
+#import "NSArray+Mappable.h"
 
 @implementation BQSongProvider
 - (instancetype)initWithSongs:(MPSectionedCollection *)songs {
@@ -18,11 +19,14 @@
 		return allSongs;
 	}
 	else if ([allSongs[0] isKindOfClass:[MPCPlayerResponseItem class]]) {
-		NSMutableArray *converted = [NSMutableArray arrayWithCapacity: allSongs.count];
-		for (int i = 0; i < allSongs.count; i++) {
-			converted[i] = ((NSArray<MPCPlayerResponseItem *> *)allSongs)[i].metadataObject.song;
-		}
-		return [converted copy];
+		return [allSongs mapObjectsUsingBlock:^MPModelSong *(MPCPlayerResponseItem *item, NSUInteger index) {
+			return item.metadataObject.song;
+		}];
+	}
+	else if ([allSongs[0] isKindOfClass:[MPModelPlaylistEntry class]]) {
+		return [allSongs mapObjectsUsingBlock:^MPModelSong *(MPModelPlaylistEntry *entry, NSUInteger index) {
+			return entry.song;
+		}];
 	}
 	else {
 		[NSException raise:@"UnknownClass" format:@"Collection contains an unknown class: %@", allSongs[0]];
@@ -38,6 +42,9 @@
 	}
 	else if ([song isKindOfClass:[MPCPlayerResponseItem class]]) {
 		return ((MPCPlayerResponseItem *)song).metadataObject.song;
+	}
+	else if ([song isKindOfClass:[MPModelPlaylistEntry class]]) {
+		return ((MPModelPlaylistEntry *)song).song;
 	}
 	else {
 		[NSException raise:@"UnknownClass" format:@"Collection contains an unknown class: %@", song];

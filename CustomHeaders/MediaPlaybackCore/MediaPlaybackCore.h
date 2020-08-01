@@ -5,3 +5,4 @@
 #import "MPCPlayerChangeRequest.h"
 #import "MPCPlaybackIntent.h"
 #import "MPCPlayerResetTracklistCommand.h"
+#import "MPCPlayerInsertItemsCommand.h"

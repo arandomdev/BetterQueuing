@@ -1,22 +1,19 @@
 #import "../CustomHeaders/MediaPlayer/MPRequestResponseController.h"
+#import <MediaPlayer/MPMusicPlayerQueueDescriptor.h>
 
-@interface BQPlayerController : NSObject {
-	NSCondition *continueLock;
-	bool shouldContinue;
-
-	bool commandSuccessful;
-}
-
+@interface BQPlayerController : NSObject
 @property(nonatomic, retain) MPRequestResponseController *controller;
 
 - (instancetype)initWithRequestController:(MPRequestResponseController *)controller;
 
-- (bool)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex;
-- (BOOL)moveItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices;
+- (BOOL)playSongsNext:(NSArray<MPModelSong *> *)songs;
+- (BOOL)moveQueueItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices;
+- (BOOL)stopQueueAtIndex:(NSInteger)index;
 - (void)shuffleQueue;
-- (void)stopAtIndex:(NSInteger)index;
 
-- (void)responseChanged:(NSNotification *)note;
+- (NSArray<MPMusicPlayerQueueDescriptor *> *)queueDescriptorsForSongs:(NSArray<MPModelSong *> *)songs;
+- (BOOL)performRequest:(id)request;
+- (MPCPlayerResponseTracklist *)getTracklist;
 
 #pragma mark override
 - (void)dealloc;

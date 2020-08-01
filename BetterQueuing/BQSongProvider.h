@@ -1,5 +1,4 @@
-#import "../CustomHeaders/MediaPlayer/MPSectionedCollection.h"
-#import "../CustomHeaders/MediaPlayer/MPModelSong.h"
+#import "../CustomHeaders/MediaPlayer/MediaPlayer.h"
 
 @interface BQSongProvider : NSObject
 @property (nonatomic, retain) MPSectionedCollection *songCollection;

@@ -1,10 +1,11 @@
 #import "BQSongProvider.h"
 #import "../CustomHeaders/MediaPlayer/MPSectionedCollection.h"
 
-@interface BQQueueDataSource : NSObject <UITableViewDataSource>
+@interface BQPickerDataSource : NSObject <UITableViewDataSource>
 @property (nonatomic, retain) BQSongProvider *songs;
+@property (nonatomic, assign) NSInteger songOffset;
 
-- (instancetype)initWithCollection:(MPSectionedCollection *)collection;
+- (instancetype)initWithCollection:(MPSectionedCollection *)collection collectionOffset:(NSInteger)offset;
 - (BOOL)shouldUpdateWithCollection:(MPSectionedCollection *)collection;
 - (void)updateWithCollection:(MPSectionedCollection *)collection;
 

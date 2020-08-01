@@ -1,4 +1,4 @@
-#import "BQQueueDataSource.h"
+#import "BQPickerDataSource.h"
 
 #import "../CustomHeaders/MediaPlaybackCore/MPCPlayerResponseItem.h"
 
@@ -7,11 +7,12 @@
 
 // TODO: re-code with header
 
-@implementation BQQueueDataSource
-- (instancetype)initWithCollection:(MPSectionedCollection *)collection {
+@implementation BQPickerDataSource
+- (instancetype)initWithCollection:(MPSectionedCollection *)collection collectionOffset:(NSInteger)offset {
 	self = [super init];
 	if (self) {
 		self.songs = [[BQSongProvider alloc] initWithSongs:collection];
+		self.songOffset = offset;
 	}
 	return self;
 }
@@ -48,8 +49,7 @@
 
 #pragma mark UITableViewDataSource
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-	// Subtracted by one because the collection contains the playing item.
-	return self.songs.songCollection.totalItemCount - 1;
+	return self.songs.songCollection.totalItemCount - self.songOffset;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -58,8 +58,7 @@
 		cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"BQQueueSongCell"];
 	}
 
-	// to account for the now playing item
-	NSInteger realIndex = indexPath.row + 1;
+	NSInteger realIndex = indexPath.row + self.songOffset;
 	MPModelSong *modelSong = [self.songs songAtIndex:realIndex];
 	MPMediaItem *song = [MPMediaItem itemFromSong:modelSong];
 	

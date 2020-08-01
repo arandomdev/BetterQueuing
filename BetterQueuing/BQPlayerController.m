@@ -1,181 +1,213 @@
 #import "BQPlayerController.h"
+#import "BQSongProvider.h"
+#import "NSArray+Mappable.h"
 
 #import "../CustomHeaders/MediaPlaybackCore/MediaPlaybackCore.h"
+#import "../CustomHeaders/MediaPlayer/MediaPlayer.h"
 
-#import "../CustomHeaders/MediaPlayer/MPMediaItem.h"
-#import "../CustomHeaders/MediaPlayer/MPMusicPlayerMediaItemQueueDescriptor.h"
 #import <MediaPlayer/MPMediaItemCollection.h>
 #import <MediaPlayer/MPMusicPlayerController.h>
 
 @implementation BQPlayerController
-- (id)initWithRequestController:(MPRequestResponseController *)controller {
+
+- (instancetype)initWithRequestController:(MPRequestResponseController *)controller {
 	self = [super init];
 	if (self) {
-		[controller beginAutomaticResponseLoading];
 		self.controller = controller;
-
-		continueLock = [[NSCondition alloc] init];
-
-		// listen to response changes
-		[NSNotificationCenter.defaultCenter addObserver:self selector:@selector(responseChanged:) name:@"BQResponseReplacedNotification" object:nil];
+		[controller beginAutomaticResponseLoading];
 	}
 	return self;
 }
 
-/*
-	Oh boy here we go...
+- (BOOL)playSongsNext:(NSArray<MPModelSong *> *)songs {
+	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForSongs:songs];
+	BOOL allSuccessful = YES;
+	
+	for (MPMusicPlayerQueueDescriptor *descriptor in [descriptors reverseObjectEnumerator]) {
+		descriptor.shuffleType = 0;
 
-	To move a song in the queue, we have to use the reorder command. Which
-	works by taking the target song and moving it after (played after) another
-	song. Judging by it's behavior, it probably uses the index path of the
-	song item to move it. Due to this, we need to make sure that the tracklist
-	we are using is the absolute latest one. To do this, I gave up and basically
-	had it wait for a set amount of time before continuing.
+		MPCPlaybackIntent *intent = [MPCPlaybackIntent intentFromQueueDescriptor:descriptor];
+		id insertRequest = [[[self getTracklist] insertCommand] insertAfterPlayingItemWithPlaybackIntent:intent];
+		allSuccessful = [self performRequest:insertRequest] ? allSuccessful : NO;
+	}
 
-	first wait:
-		Wait for the command to complete.
-	second wait:
-		Wait for the response to be replaced.
-	third wait:
-		Wait for a bit longer, just incase the response is replaced again.
+	return allSuccessful;
+}
 
-	Note: This should be called in a background thread, and the zeroth index
-	is the currently playing item.
+
+- (BOOL)moveQueueItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices {
+	MPSectionedCollection *songCollection = [self getTracklist].items;
+	NSArray *targetSongs = [itemsIndices mapObjectsUsingBlock:^MPModelSong *(NSNumber *itemIndex, NSUInteger index) {
+		// remove the item from the queue
+		MPCPlayerResponseItem *item = [songCollection itemAtIndexPath:[songCollection indexPathForGlobalIndex:itemIndex.integerValue]];
+		[MPCPlayerChangeRequest performRequest:[item remove] completion:nil];
+
+		return item.metadataObject.song;
+	}];
+
+	BOOL allSuccessful = YES;
+
+	// re-insert the songs at the top
+	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForSongs:targetSongs];
+	for (MPMusicPlayerQueueDescriptor *descriptor in [descriptors reverseObjectEnumerator]) {
+		descriptor.shuffleType = 0;
+
+		MPCPlaybackIntent *intent = [MPCPlaybackIntent intentFromQueueDescriptor:descriptor];
+		id insertRequest = [[[self getTracklist] insertCommand] insertAfterPlayingItemWithPlaybackIntent:intent];
+		allSuccessful = [self performRequest:insertRequest] ? allSuccessful : NO;
+	}
+
+	return allSuccessful;
+}
+
+- (BOOL)stopQueueAtIndex:(NSInteger)index {
+	BQSongProvider *songCollection = [[BQSongProvider alloc] initWithSongs:[self getTracklist].items];
+	NSMutableArray<MPModelSong *> *targetSongs = [NSMutableArray new];
+	for (int i = 0; i <= index; i++) {
+		[targetSongs addObject:[songCollection songAtIndex:i]];
+	}
+
+	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForSongs:targetSongs];
+
+	// turn off shuffle to preserve the order
+	for (MPMusicPlayerQueueDescriptor *descriptor in descriptors) {
+		descriptor.shuffleType = 0;
+	}
+	
+	// set the start time for the first song
+	double currentTime = MPMusicPlayerController.systemMusicPlayer.currentPlaybackTime;
+	if ([descriptors[0] isKindOfClass:[MPMusicPlayerMediaItemQueueDescriptor class]]) {
+		MPMusicPlayerMediaItemQueueDescriptor *firstDescriptor = (MPMusicPlayerMediaItemQueueDescriptor *)descriptors[0];
+		MPMediaItem *firstItem = firstDescriptor.itemCollection.items[0];
+		[firstDescriptor setStartTime:currentTime forItem:firstItem];
+	}
+	else {
+		MPMusicPlayerStoreQueueDescriptor *firstDescriptor = (MPMusicPlayerStoreQueueDescriptor *)descriptors[0];
+		NSString *firstItem = firstDescriptor.storeIDs[0];
+		[firstDescriptor setStartTime:currentTime forItemWithStoreID:firstItem];
+	}
+
+	BOOL allSuccessful = YES;
+	
+	// reset the queue with the first descriptor
+	MPCPlaybackIntent *firstIntent = [MPCPlaybackIntent intentFromQueueDescriptor:descriptors[0]];
+	id replaceRequest = [[[self getTracklist] resetCommand] replaceWithPlaybackIntent:firstIntent];
+	allSuccessful = [self performRequest:replaceRequest] ? allSuccessful : NO;
+
+	// insert the rest of the descriptors
+	for (int i = 1; i < descriptors.count; i++) {
+		MPCPlaybackIntent *intent = [MPCPlaybackIntent intentFromQueueDescriptor:descriptors[i]];
+		id insertRequest = [[[self getTracklist] insertCommand] insertAtEndOfTracklistWithPlaybackIntent:intent];
+		allSuccessful = [self performRequest:insertRequest] ? allSuccessful : NO;
+	}
+
+	return allSuccessful;
+}
+
+- (void)shuffleQueue {
+	id<MPCPlayerShuffleCommand> advanceRequest = [[[self getTracklist] shuffleCommand] advance];
+	[MPCPlayerChangeRequest performRequest:advanceRequest completion:nil];
+	[MPCPlayerChangeRequest performRequest:advanceRequest completion:nil];
+}
+
+/**
+*	This method takes an array of songs and puts them into queue descriptors while
+*	persevering their order. MPConcreteMediaItem (local and added to library)
+*	are put into MPMusicPlayerMediaItemQueueDescriptors
+*	while MPModelObjectMediaItem (non-local and probably not added to library) are
+*	put into MPMusicPlayerStoreQueueDescriptors.
 */
-- (bool)moveItemAtIndex:(NSInteger)itemIndex toIndex:(NSInteger)targetIndex {
-	if (itemIndex == targetIndex) {
-		HBLogDebug(@"Not moving, indices identical"); // TODO: remove
-		return YES;
+- (NSArray<MPMusicPlayerQueueDescriptor *> *)queueDescriptorsForSongs:(NSArray<MPModelSong *> *)songs {
+	if (songs.count == 0) {
+		return @[];
 	}
 
-	MPCPlayerResponseTracklist *tracklist = self.controller.response.tracklist;
-	MPSectionedCollection *songs = tracklist.items;
+	NSArray *songItems = [songs mapObjectsUsingBlock:^MPMediaItem *(MPModelSong *song, NSUInteger index) {
+		return [MPMediaItem itemFromSong:song];
+	}];
 
-	MPCPlayerResponseItem *item = [songs itemAtIndexPath:[songs indexPathForGlobalIndex:itemIndex]];
-	MPCPlayerResponseItem *targetItem = [songs itemAtIndexPath:[songs indexPathForGlobalIndex:targetIndex]];
+	// First find where we need to split the songs array.
+	// These markers are placed when a MPConcreteMediaItem
+	// is next to a MPModelObjectMediaItem.
 
-	id<MPCPlayerReorderItemsCommand> reorderCommand = [tracklist reorderCommand];
-	if (![reorderCommand canMoveItem:item]) {
-		return NO;
+	NSMutableArray<NSNumber *> *splitPoints = [NSMutableArray new];
+	for (int i = 1; i < songItems.count; i++) {
+		BOOL isItem1Local = ![songItems[i-1] isKindOfClass:[MPModelObjectMediaItem class]];
+		BOOL isItem2Local = ![songItems[i] isKindOfClass:[MPModelObjectMediaItem class]];
+		
+		// XOR
+		if (isItem1Local ^ isItem2Local) {
+			[splitPoints addObject:@(i)];
+		}
 	}
-	id reorderRequest = [reorderCommand moveItem:item afterItem:targetItem];
+	[splitPoints addObject:@(songItems.count)];
 
-	// First wait
-	commandSuccessful = YES;
+	// Then using the split points, split the songs
+	NSMutableArray<MPMusicPlayerQueueDescriptor *> *songDescriptors = [NSMutableArray new];
+	NSInteger songHead = 0;
+	for (NSNumber *point in splitPoints) {
+		NSRange arrayRange = NSMakeRange(songHead, point.integerValue-songHead);
+		NSArray<MPMediaItem *> *sectionedSongs = [songItems subarrayWithRange:arrayRange];
+		songHead = point.integerValue;
 
+		// put the sectioned songs into a descriptor
+		if ([sectionedSongs[0] isKindOfClass:[MPModelObjectMediaItem class]]) {
+			// Use store id
+			NSMutableArray<NSString *> *storeIDs = [NSMutableArray new];
+			for (MPMediaItem *songItem in sectionedSongs) {
+				[storeIDs addObject:songItem.playbackStoreID];
+			}
+			[songDescriptors addObject:[[MPMusicPlayerStoreQueueDescriptor alloc] initWithStoreIDs: storeIDs]];
+		}
+		else {
+			// Use MPMediaItem
+			MPMediaItemCollection *songCollection = [MPMediaItemCollection collectionWithItems:sectionedSongs];
+			[songDescriptors addObject:[[MPMusicPlayerMediaItemQueueDescriptor alloc] initWithItemCollection:songCollection]];
+		}
+	}
+
+	return [songDescriptors copy];
+}
+
+- (BOOL)performRequest:(id)request {
+	__block BOOL isCommandSuccessful = YES;
+	
+	// Wait for the command to send
 	dispatch_semaphore_t completion = dispatch_semaphore_create(0);
-	[MPCPlayerChangeRequest performRequest:reorderRequest completion:^void (NSError *error) {
+	[MPCPlayerChangeRequest performRequest:request completion:^void (NSError *error) {
 		if (error) {
-			HBLogError(@"Reorder Error: %@", error);
-			commandSuccessful = NO;
+			isCommandSuccessful = NO;
 		}
 		dispatch_semaphore_signal(completion);
 	}];
 	dispatch_semaphore_wait(completion, DISPATCH_TIME_NOW);
 
-	if (!commandSuccessful) {
+	if (!isCommandSuccessful) {
 		return NO;
 	}
 
-	// Second wait
-	[continueLock lock];
-	shouldContinue = NO;
-	while (!shouldContinue) {
-		[continueLock wait];
-	}
-	[continueLock unlock];
-
-	// I LITERALLY DO NOT UNDERSTAND!!!!!!!! >:c (;n;)
-	// Third wait
-	[NSThread sleepForTimeInterval:0.1];
-
-	HBLogDebug(@"moved song: <%@> after: <%@>", item.metadataObject.song.title, targetItem.metadataObject.song.title);
-	return YES;
-}
-
-- (BOOL)moveItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices {
-	MPSectionedCollection *allItems = self.controller.response.tracklist.items;
-
-	NSMutableArray<MPCPlayerResponseItem *> *targetItems = [NSMutableArray arrayWithCapacity:itemsIndices.count];
-	for (NSNumber *i in itemsIndices) {
-		HBLogDebug(@"%@", i);
-		[targetItems addObject:[allItems itemAtIndexPath:[allItems indexPathForGlobalIndex:i.integerValue]]];
-	}
-
-	// remove items from the queue
-	for (MPCPlayerResponseItem *item in targetItems) {
-		id removeRequest = [item remove];
-		[MPCPlayerChangeRequest performRequest:removeRequest completion:^void (NSError *error) {
-			if (error) {
-				HBLogError(@"Reorder Error: %@", error);
-				commandSuccessful = NO;
-			}
-			else {
-				HBLogDebug(@"Removed: %@", item.metadataObject.song.title);
-			}
-		}];
-	}
-
-	// add the items back to be played next
-	
-
-	return YES;
-}
-
-// To shuffle the queue, we can basically turn shuffle off and on.
-- (void)shuffleQueue {
-	id<MPCPlayerShuffleCommand> shuffleOffCommand = [self.controller.response.tracklist shuffleCommand];
-	id offRequest = [shuffleOffCommand setShuffleType:0];
-	[MPCPlayerChangeRequest performRequest:offRequest completion:^void (NSError *error) {
-		
-		id<MPCPlayerShuffleCommand> shuffleOnCommand = [self.controller.response.tracklist shuffleCommand];
-		id onRequest = [shuffleOnCommand setShuffleType:1];
-		[MPCPlayerChangeRequest performRequest:onRequest completion:nil];
+	// wait for the response to change
+	__block BOOL responseChanged = NO;
+	NSNotificationCenter * __weak center = [NSNotificationCenter defaultCenter];
+	id __block token = [center addObserverForName:@"BQResponseReplacedNotification" object:nil queue:nil usingBlock:^(NSNotification *note) {
+		responseChanged = YES;
+		[center removeObserver:token];
 	}];
-}
 
-/*
-	This method works by replacing the queue with songs from the playing item and to the
-	item at the given index. It also sets the playing item's elapsed time and the
-	shuffle mode so that it is a seamless change (With a small pause). 
-*/
-- (void)stopAtIndex:(NSInteger)index {
-	// include the current song
-	index++;
-
-	MPSectionedCollection *tracklist = self.controller.response.tracklist.items;
-	NSInteger nowPlayingOffset = self.controller.response.tracklist.playingItem.indexPath.row;
-
-	NSMutableArray *songs = [NSMutableArray new];
-	for (NSInteger i = 0; i <= index; i++) {
-		NSIndexPath *songPath = [
-			NSIndexPath
-			indexPathForRow: i + nowPlayingOffset
-			inSection: 0
-		];
-		MPCPlayerResponseItem *item = [tracklist itemAtIndexPath:songPath];
-		[songs addObject: [MPMediaItem itemFromSong:item.metadataObject.song]];
+	NSDate *timeoutDate = [NSDate dateWithTimeIntervalSinceNow:1];
+	while (!responseChanged) {
+		[[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+		if ([timeoutDate compare:[NSDate date]] == NSOrderedAscending) {
+			[center removeObserver:token];
+			break;
+		}
 	}
 
-	MPMediaItemCollection *collection = [MPMediaItemCollection collectionWithItems:songs];
-	MPMusicPlayerMediaItemQueueDescriptor *queueDescriptor = [[MPMusicPlayerMediaItemQueueDescriptor alloc] initWithItemCollection:collection];
-
-	double currentTime = MPMusicPlayerController.systemMusicPlayer.currentPlaybackTime;
-	[queueDescriptor setStartTime:currentTime forItem:songs[0]];
-	queueDescriptor.shuffleType = 0;
-
-	MPCPlaybackIntent *intent = [MPCPlaybackIntent intentFromQueueDescriptor:queueDescriptor];
-	
-	id<MPCPlayerResetTracklistCommand> resetCommand = [self.controller.response.tracklist resetCommand];
-	id replaceRequest = [resetCommand replaceWithPlaybackIntent:intent];
-	[MPCPlayerChangeRequest performRequest:replaceRequest completion:nil];
+	return YES;
 }
 
-- (void)responseChanged:(NSNotification *)note {
-	[continueLock lock];
-	shouldContinue = YES;
-	[continueLock signal];
-	[continueLock unlock];
+- (MPCPlayerResponseTracklist *)getTracklist {
+	return self.controller.response.tracklist;
 }
 
 #pragma mark override

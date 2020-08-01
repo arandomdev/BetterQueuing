@@ -14,7 +14,7 @@
 		UITableViewController *tableViewController = [[UITableViewController alloc] initWithStyle:UITableViewStylePlain];
 		self.tableView = tableViewController.tableView;
 
-		self.dataSource = [[BQQueueDataSource alloc] initWithCollection:requestController.response.tracklist.items];
+		self.dataSource = [[BQPickerDataSource alloc] initWithCollection:requestController.response.tracklist.items collectionOffset:1];
 		self.tableView.dataSource = self.dataSource;
 		self.tableView.allowsMultipleSelection = YES;
 
@@ -37,6 +37,7 @@
 
 - (void)dismissPicker {
 	[self.requestController endAutomaticResponseLoading];
+	[NSNotificationCenter.defaultCenter removeObserver:self name:@"BQResponseReplacedNotification" object:nil];
 	[self dismissViewControllerAnimated:YES completion:nil];
 }
 
@@ -80,23 +81,23 @@
 			return (NSComparisonResult)NSOrderedSame;
 		}];
 
-		bool allSuccessful = YES;
-		int targetIndex = 0;
-		for (NSIndexPath *indexPath in selectedPaths) {
-			if (![self.playerController moveItemAtIndex:(indexPath.row + 1) toIndex:targetIndex]) {
-				allSuccessful = NO;
-			}
-			targetIndex++;
-		}
-		// NSMutableArray<NSNumber *> *targetItems = [NSMutableArray arrayWithCapacity:selectedPaths.count];
+		// bool allSuccessful = YES;
+		// int targetIndex = 0;
 		// for (NSIndexPath *indexPath in selectedPaths) {
-		// 	[targetItems addObject:@(indexPath.row+1)];
+		// 	if (![self.playerController moveItemAtIndex:(indexPath.row + 1) toIndex:targetIndex]) {
+		// 		allSuccessful = NO;
+		// 	}
+		// 	targetIndex++;
 		// }
-		// [self.playerController moveItemsToPlayNext:targetItems];
+		NSMutableArray<NSNumber *> *targetItems = [NSMutableArray new];
+		for (NSIndexPath *indexPath in selectedPaths) {
+			[targetItems addObject:@(indexPath.row+1)];
+		}
+		BOOL successful = [self.playerController moveQueueItemsToPlayNext:targetItems];
 
 		dispatch_async(dispatch_get_main_queue(), ^(void) {
 			UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];
-			if (allSuccessful) {
+			if (successful) {
 				[generator notificationOccurred: UINotificationFeedbackTypeSuccess];
 			}
 			else {

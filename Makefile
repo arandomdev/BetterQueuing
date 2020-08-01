@@ -8,7 +8,7 @@ INSTALL_TARGET_PROCESSES = Music
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = BetterQueuing
-BetterQueuing_FILES = Tweak.xm BetterQueuing/BQQueueDataSource.m BetterQueuing/BQQueueViewController.m BetterQueuing/BQPlayerController.m BetterQueuing/BQSongProvider.m
+BetterQueuing_FILES = Tweak.xm BetterQueuing/BQPickerDataSource.m BetterQueuing/BQQueueViewController.m BetterQueuing/BQPlayerController.m BetterQueuing/BQSongProvider.m BetterQueuing/BQPickerController.m BetterQueuing/NSArray+Mappable.m
 
 BetterQueuing_PRIVATE_FRAMEWORKS = MediaPlaybackCore
 BetterQueuing_CFLAGS = -fobjc-arc -D__USE_CF_LOG

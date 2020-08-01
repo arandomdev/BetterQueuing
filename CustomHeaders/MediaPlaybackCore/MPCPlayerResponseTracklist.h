@@ -2,6 +2,7 @@
 #import "MPCPlayerReorderItemsCommand.h"
 #import "MPCPlayerShuffleCommand.h"
 #import "MPCPlayerResetTracklistCommand.h"
+#import "MPCPlayerInsertItemsCommand.h"
 
 #import "../MediaPlayer/MPSectionedCollection.h"
 
@@ -11,4 +12,5 @@
 -(id<MPCPlayerReorderItemsCommand>)reorderCommand;
 -(id<MPCPlayerShuffleCommand>)shuffleCommand;
 -(id<MPCPlayerResetTracklistCommand>)resetCommand;
+-(id<MPCPlayerInsertItemsCommand>)insertCommand;
 @end

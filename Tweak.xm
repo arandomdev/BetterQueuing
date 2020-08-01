@@ -1,8 +1,11 @@
 #import "CustomHeaders/UIContextMenuConfiguration.h"
 #import "CustomHeaders/MediaPlaybackCore/MediaPlaybackCore.h"
+#import "CustomHeaders/MediaPlayer/MediaPlayer.h"
 
 #import "BetterQueuing/BQQueueViewController.h"
+#import "BetterQueuing/BQPickerController.h"
 #import "BetterQueuing/BQPlayerController.h"
+#import "BetterQueuing/NSArray+Mappable.h"
 
 
 BOOL CustomQueueCountEnabled = NO;
@@ -22,6 +25,9 @@ typedef struct {
 
 @interface UIAlertAction ()
 @property (nonatomic,copy) void (^handler)(UIAlertAction *action);
+@end
+
+@interface PlaybackEngineController : NSObject
 @end
 
 @interface NowPlayingQueueViewController
@@ -72,6 +78,24 @@ typedef struct {
 %end
 
 
+static id SharedPlaybackEngineController;
+
+%hook MPRequestResponseController
+- (void)setDelegate:(id)delegate {
+	if ([delegate isKindOfClass:[objc_getClass("MusicApplication.PlaybackEngineController") class]]) {
+		SharedPlaybackEngineController = delegate;
+	}
+	%orig();
+}
+%end
+
+MPRequestResponseController *getSharedResponseController() {
+	if (SharedPlaybackEngineController) {
+		return MSHookIvar<MPRequestResponseController *>(SharedPlaybackEngineController, "playerRequestResponseController");
+	}
+	return nil;
+}
+
 %hook NowPlayingViewController
 - (void)controller:(id)controller defersResponseReplacement:(void (^)())origBlock {
 	/*
@@ -81,7 +105,7 @@ typedef struct {
 	*/
 	void (^injectedBlock)() = ^void() {
 		origBlock();
-		// HBLogDebug(@"Response replaced"); // TODO: remove
+		HBLogDebug(@"NowPlayingController: Response replaced, %@", controller); // TODO: remove
 		[NSNotificationCenter.defaultCenter postNotificationName:@"BQResponseReplacedNotification" object:self];
 	};
 	%orig(controller, injectedBlock);
@@ -89,7 +113,7 @@ typedef struct {
 %end
 
 %hook NowPlayingQueueViewController
-// Up Next Menu Actions
+// Up Next Menu Actions (Queue)
 - (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
 	/*
 		This is method is called when ever a song cell is long pressed.
@@ -135,7 +159,7 @@ typedef struct {
 		UIAction *playNextAction = [UIAction actionWithTitle:@"Play Next" image:[UIImage systemImageNamed:@"text.insert"] identifier:nil handler:^void (UIAction *sender) {
 			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 				BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:requestController];
-				bool successful = [controller moveItemAtIndex: indexPath.row toIndex: 0];
+				bool successful = [controller moveQueueItemsToPlayNext:@[@(indexPath.row+1)]];
 
 				dispatch_async(dispatch_get_main_queue(), ^{
 					UINotificationFeedbackGenerator *generator = [[UINotificationFeedbackGenerator alloc] init];
@@ -152,7 +176,7 @@ typedef struct {
 		UIAction *stopHereAction = [UIAction actionWithTitle:@"Stop Here" image:[UIImage systemImageNamed:@"arrow.down.to.line"] identifier:nil handler:^void (UIAction *sender) {
 			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 				BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:requestController];
-				[controller stopAtIndex:indexPath.row];
+				[controller stopQueueAtIndex:indexPath.row+1];
 			});
 		}];
 
@@ -232,10 +256,92 @@ typedef struct {
 }
 %end
 
+// Up Next Menu Actions (Playlist / Albums)
 %hook ContainerDetailSongsViewController
 - (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
-	HBLogDebug(@"Hello!!!");
+	UIContextMenuConfiguration *contextConfig = %orig();
+	UIMenu *(^origActionProvider)(NSArray *) = contextConfig.actionProvider;
+
+	UIMenu *(^newActionProvider)(NSArray *) = ^UIMenu *(NSArray *suggestedActions) {
+		UIMenu *origMenu = origActionProvider(suggestedActions);
+
+		// This action will display the song picker
+		UIAction *queueSongsAction = [UIAction actionWithTitle:@"Queue Songs" image:[UIImage systemImageNamed:@"list.dash"] identifier:nil handler:^void (UIAction *sender) {
+			MPModelResponse *_modelResponse = MSHookIvar<MPModelResponse *>(self, "_modelResponse");
+			BQPickerController *picker = [[BQPickerController alloc] initWithCollection:_modelResponse.results dismissHandler:^void (NSArray<NSDictionary<NSString *, id> *> *entries) {
+				dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+					BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:getSharedResponseController()];
+					NSArray *songs = [entries mapObjectsUsingBlock:^MPModelSong *(NSDictionary *entry, NSUInteger index) {
+						return entry[@"song"];
+					}];
+					[controller playSongsNext:songs];
+				});
+			}];
+
+			[(UIViewController *)self presentViewController:picker animated:YES completion:nil];
+		}];
+
+		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.StickyMenu" options:UIMenuOptionsDisplayInline children:@[queueSongsAction]];
+		UIMenu *deferredMenu = (UIMenu*)origMenu.children[0];
+		deferredMenu = [deferredMenu menuByReplacingChildren:[deferredMenu.children arrayByAddingObject:customMenu]];
+		UIMenu *newMenu = [origMenu menuByReplacingChildren:@[deferredMenu]];
+
+		return newMenu;
+	};
+	contextConfig.actionProvider = newActionProvider;
+
+	return contextConfig;
+}
+%end
+
+// Up Next Menu Actions (Songs)
+%hook SongsViewController
+- (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
+	id requestController = MSHookIvar<id>(self, "requestController");
+	HBLogDebug(@"requestController: %p", requestController);
+
+	id request = MSHookIvar<id>(requestController, "request");
+	HBLogDebug(@"request: %@", request);
+
+	id currentResponseContext = MSHookIvar<id>(requestController, "currentResponseContext");
+	HBLogDebug(@"currentResponseContext: %@", currentResponseContext);
+
+	id inflightResponseContext = MSHookIvar<id>(requestController, "inflightResponseContext");
+	HBLogDebug(@"inflightResponseContext: %@", inflightResponseContext);
+
 	return %orig();
+	UIContextMenuConfiguration *contextConfig = %orig();
+	UIMenu *(^origActionProvider)(NSArray *) = contextConfig.actionProvider;
+
+	UIMenu *(^newActionProvider)(NSArray *) = ^UIMenu *(NSArray *suggestedActions) {
+		UIMenu *origMenu = origActionProvider(suggestedActions);
+
+		// This action will display the song picker
+		UIAction *queueSongsAction = [UIAction actionWithTitle:@"Queue Songs" image:[UIImage systemImageNamed:@"list.dash"] identifier:nil handler:^void (UIAction *sender) {
+			MPModelResponse *_modelResponse = MSHookIvar<MPModelResponse *>(self, "_modelResponse");
+			BQPickerController *picker = [[BQPickerController alloc] initWithCollection:_modelResponse.results dismissHandler:^void (NSArray<NSDictionary<NSString *, id> *> *entries) {
+				dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+					BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:getSharedResponseController()];
+					NSArray *songs = [entries mapObjectsUsingBlock:^MPModelSong *(NSDictionary *entry, NSUInteger index) {
+						return entry[@"song"];
+					}];
+					[controller playSongsNext:songs];
+				});
+			}];
+
+			[(UIViewController *)self presentViewController:picker animated:YES completion:nil];
+		}];
+
+		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.StickyMenu" options:UIMenuOptionsDisplayInline children:@[queueSongsAction]];
+		UIMenu *deferredMenu = (UIMenu*)origMenu.children[0];
+		deferredMenu = [deferredMenu menuByReplacingChildren:[deferredMenu.children arrayByAddingObject:customMenu]];
+		UIMenu *newMenu = [origMenu menuByReplacingChildren:@[deferredMenu]];
+
+		return newMenu;
+	};
+	contextConfig.actionProvider = newActionProvider;
+
+	return contextConfig;
 }
 %end
 
@@ -326,7 +432,8 @@ static void ReloadPreferences() {
 	%init(NowPlayingViewController=objc_getClass("MusicApplication.NowPlayingViewController"),
 		NowPlayingQueueViewController=objc_getClass("MusicApplication.NowPlayingQueueViewController"),
 		TabBarController=objc_getClass("MusicApplication.TabBarController"),
-		ContainerDetailSongsViewController=objc_getClass("MusicApplication.ContainerDetailSongsViewController")
+		ContainerDetailSongsViewController=objc_getClass("MusicApplication.ContainerDetailSongsViewController"),
+		SongsViewController=objc_getClass("MusicApplication.SongsViewController")
 	);
 	return %orig();
 }
