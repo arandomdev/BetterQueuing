@@ -3,7 +3,7 @@
 
 @interface BQPickerDataSource : NSObject <UITableViewDataSource>
 @property (nonatomic, retain) BQSongProvider *songs;
-@property (nonatomic, assign) NSInteger songOffset;
+@property (nonatomic, assign) NSInteger collectionOffset;
 
 - (instancetype)initWithCollection:(MPSectionedCollection *)collection collectionOffset:(NSInteger)offset;
 - (BOOL)shouldUpdateWithCollection:(MPSectionedCollection *)collection;

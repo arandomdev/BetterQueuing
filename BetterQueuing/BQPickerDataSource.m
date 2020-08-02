@@ -10,7 +10,7 @@
 	self = [super init];
 	if (self) {
 		self.songs = [[BQSongProvider alloc] initWithSongs:collection];
-		self.songOffset = offset;
+		self.collectionOffset = offset;
 	}
 	return self;
 }
@@ -47,7 +47,7 @@
 
 #pragma mark UITableViewDataSource
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-	return self.songs.songCollection.totalItemCount - self.songOffset;
+	return self.songs.songCollection.totalItemCount - self.collectionOffset;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -56,7 +56,7 @@
 		cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"BQQueueSongCell"];
 	}
 
-	NSInteger realIndex = indexPath.row + self.songOffset;
+	NSInteger realIndex = indexPath.row + self.collectionOffset;
 	MPModelSong *modelSong = [self.songs songAtIndex:realIndex];
 	MPMediaItem *song = [MPMediaItem itemFromSong:modelSong];
 	

@@ -60,11 +60,11 @@
 
 	NSArray *entries = [selectedPaths mapObjectsUsingBlock:^NSDictionary * (NSIndexPath *path, NSUInteger index) {
 		NSNumber *selectedIndex = @(path.row);
-		MPModelSong *song = [self.songs songAtIndex:path.row];
+		MPMediaItem *item = [MPMediaItem itemFromSong:[self.songs songAtIndex:path.row]];
 
 		return @{
 			@"index" : selectedIndex,
-			@"song" : song
+			@"item" : item
 		};
 	}];
 

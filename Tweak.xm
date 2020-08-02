@@ -6,6 +6,7 @@
 
 #import "BetterQueuing/BQQueueViewController.h"
 #import "BetterQueuing/BQPickerController.h"
+#import "BetterQueuing/BQQueuePickerController.h"
 #import "BetterQueuing/BQPlayerController.h"
 #import "BetterQueuing/NSArray+Mappable.h"
 
@@ -19,6 +20,7 @@ BOOL HideControlsEnabled = NO;
 
 BOOL BetterTabShortcutEnabled = NO;
 
+#pragma mark Hello
 
 typedef struct {
 	long long reverseCount;
@@ -184,7 +186,16 @@ MPRequestResponseController *getSharedResponseController() {
 
 		// This action will display the song picker
 		UIAction *queueSongsAction = [UIAction actionWithTitle:@"Queue Songs" image:[UIImage systemImageNamed:@"list.dash"] identifier:nil handler:^void (UIAction *sender) {
-			BQQueueViewController *picker = [[BQQueueViewController alloc] initWithRequestController:requestController];
+			BQQueuePickerController *picker = [[BQQueuePickerController alloc] initWithController:requestController dismissHandler:^void (NSArray<NSDictionary<NSString *, id> *> *entries) {
+				dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+					BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:requestController];
+					NSArray *itemIndices = [entries mapObjectsUsingBlock:^NSNumber *(NSDictionary *entry, NSUInteger index) {
+						return @(((NSNumber *)entry[@"index"]).integerValue + 1);
+					}];
+					[controller moveQueueItemsToPlayNext:itemIndices];
+				});
+			}];
+			// BQQueueViewController *picker = [[BQQueueViewController alloc] initWithRequestController:requestController];
 			[nowPlayingController presentViewController:picker animated:YES completion:nil];
 		}];
 		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.StickyMenu" options:UIMenuOptionsDisplayInline children:@[playNextAction, stopHereAction, queueSongsAction]];
@@ -274,7 +285,7 @@ MPRequestResponseController *getSharedResponseController() {
 				dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 					BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:getSharedResponseController()];
 					NSArray *items = [entries mapObjectsUsingBlock:^MPMediaItem *(NSDictionary *entry, NSUInteger index) {
-						return [MPMediaItem itemFromSong:entry[@"song"]];
+						return entry[@"item"];
 					}];
 					[controller playItemsNext:items];
 				});
