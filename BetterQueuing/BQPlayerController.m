@@ -19,8 +19,8 @@
 	return self;
 }
 
-- (BOOL)playSongsNext:(NSArray<MPModelSong *> *)songs {
-	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForSongs:songs];
+- (BOOL)playItemsNext:(NSArray<MPMediaItem *> *)items {
+	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForItems:items];
 	BOOL allSuccessful = YES;
 	
 	for (MPMusicPlayerQueueDescriptor *descriptor in [descriptors reverseObjectEnumerator]) {
@@ -37,18 +37,18 @@
 
 - (BOOL)moveQueueItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices {
 	MPSectionedCollection *songCollection = [self getTracklist].items;
-	NSArray *targetSongs = [itemsIndices mapObjectsUsingBlock:^MPModelSong *(NSNumber *itemIndex, NSUInteger index) {
+	NSArray *targetItems = [itemsIndices mapObjectsUsingBlock:^MPMediaItem *(NSNumber *itemIndex, NSUInteger index) {
 		// remove the item from the queue
 		MPCPlayerResponseItem *item = [songCollection itemAtIndexPath:[songCollection indexPathForGlobalIndex:itemIndex.integerValue]];
 		[MPCPlayerChangeRequest performRequest:[item remove] completion:nil];
 
-		return item.metadataObject.song;
+		return [MPMediaItem itemFromSong:item.metadataObject.song];
 	}];
 
 	BOOL allSuccessful = YES;
 
 	// re-insert the songs at the top
-	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForSongs:targetSongs];
+	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForItems:targetItems];
 	for (MPMusicPlayerQueueDescriptor *descriptor in [descriptors reverseObjectEnumerator]) {
 		descriptor.shuffleType = 0;
 
@@ -62,12 +62,12 @@
 
 - (BOOL)stopQueueAtIndex:(NSInteger)index {
 	BQSongProvider *songCollection = [[BQSongProvider alloc] initWithSongs:[self getTracklist].items];
-	NSMutableArray<MPModelSong *> *targetSongs = [NSMutableArray new];
+	NSMutableArray<MPMediaItem *> *targetItems = [NSMutableArray new];
 	for (int i = 0; i <= index; i++) {
-		[targetSongs addObject:[songCollection songAtIndex:i]];
+		[targetItems addObject:[MPMediaItem itemFromSong:[songCollection songAtIndex:i]]];
 	}
 
-	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForSongs:targetSongs];
+	NSArray<MPMusicPlayerQueueDescriptor *> *descriptors = [self queueDescriptorsForItems:targetItems];
 
 	// turn off shuffle to preserve the order
 	for (MPMusicPlayerQueueDescriptor *descriptor in descriptors) {
@@ -117,37 +117,33 @@
 *	while MPModelObjectMediaItem (non-local and probably not added to library) are
 *	put into MPMusicPlayerStoreQueueDescriptors.
 */
-- (NSArray<MPMusicPlayerQueueDescriptor *> *)queueDescriptorsForSongs:(NSArray<MPModelSong *> *)songs {
-	if (songs.count == 0) {
+- (NSArray<MPMusicPlayerQueueDescriptor *> *)queueDescriptorsForItems:(NSArray<MPMediaItem *> *)items {
+	if (items.count == 0) {
 		return @[];
 	}
-
-	NSArray *songItems = [songs mapObjectsUsingBlock:^MPMediaItem *(MPModelSong *song, NSUInteger index) {
-		return [MPMediaItem itemFromSong:song];
-	}];
 
 	// First find where we need to split the songs array.
 	// These markers are placed when a MPConcreteMediaItem
 	// is next to a MPModelObjectMediaItem.
 
 	NSMutableArray<NSNumber *> *splitPoints = [NSMutableArray new];
-	for (int i = 1; i < songItems.count; i++) {
-		BOOL isItem1Local = ![songItems[i-1] isKindOfClass:[MPModelObjectMediaItem class]];
-		BOOL isItem2Local = ![songItems[i] isKindOfClass:[MPModelObjectMediaItem class]];
+	for (int i = 1; i < items.count; i++) {
+		BOOL isItem1Local = ![items[i-1] isKindOfClass:[MPModelObjectMediaItem class]];
+		BOOL isItem2Local = ![items[i] isKindOfClass:[MPModelObjectMediaItem class]];
 		
 		// XOR
 		if (isItem1Local ^ isItem2Local) {
 			[splitPoints addObject:@(i)];
 		}
 	}
-	[splitPoints addObject:@(songItems.count)];
+	[splitPoints addObject:@(items.count)];
 
 	// Then using the split points, split the songs
 	NSMutableArray<MPMusicPlayerQueueDescriptor *> *songDescriptors = [NSMutableArray new];
 	NSInteger songHead = 0;
 	for (NSNumber *point in splitPoints) {
 		NSRange arrayRange = NSMakeRange(songHead, point.integerValue-songHead);
-		NSArray<MPMediaItem *> *sectionedSongs = [songItems subarrayWithRange:arrayRange];
+		NSArray<MPMediaItem *> *sectionedSongs = [items subarrayWithRange:arrayRange];
 		songHead = point.integerValue;
 
 		// put the sectioned songs into a descriptor

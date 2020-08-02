@@ -1,3 +1,5 @@
+#import <MediaPlayer/MPMediaPickerController.h>
+
 #import "CustomHeaders/UIContextMenuConfiguration.h"
 #import "CustomHeaders/MediaPlaybackCore/MediaPlaybackCore.h"
 #import "CustomHeaders/MediaPlayer/MediaPlayer.h"
@@ -271,10 +273,10 @@ MPRequestResponseController *getSharedResponseController() {
 			BQPickerController *picker = [[BQPickerController alloc] initWithCollection:_modelResponse.results dismissHandler:^void (NSArray<NSDictionary<NSString *, id> *> *entries) {
 				dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
 					BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:getSharedResponseController()];
-					NSArray *songs = [entries mapObjectsUsingBlock:^MPModelSong *(NSDictionary *entry, NSUInteger index) {
-						return entry[@"song"];
+					NSArray *items = [entries mapObjectsUsingBlock:^MPMediaItem *(NSDictionary *entry, NSUInteger index) {
+						return [MPMediaItem itemFromSong:entry[@"song"]];
 					}];
-					[controller playSongsNext:songs];
+					[controller playItemsNext:items];
 				});
 			}];
 
@@ -296,20 +298,17 @@ MPRequestResponseController *getSharedResponseController() {
 
 // Up Next Menu Actions (Songs)
 %hook SongsViewController
+%new
+- (void)mediaPicker:(MPMediaPickerController *)mediaPicker didPickMediaItems:(MPMediaItemCollection *)mediaItemCollection {
+	[mediaPicker dismissViewControllerAnimated:YES completion:nil];
+
+	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+		BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:getSharedResponseController()];
+		[controller playItemsNext:mediaItemCollection.items];
+	});
+}
+
 - (id)collectionView:(id)collectionView contextMenuConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath point:(CGPoint)point {
-	id requestController = MSHookIvar<id>(self, "requestController");
-	HBLogDebug(@"requestController: %p", requestController);
-
-	id request = MSHookIvar<id>(requestController, "request");
-	HBLogDebug(@"request: %@", request);
-
-	id currentResponseContext = MSHookIvar<id>(requestController, "currentResponseContext");
-	HBLogDebug(@"currentResponseContext: %@", currentResponseContext);
-
-	id inflightResponseContext = MSHookIvar<id>(requestController, "inflightResponseContext");
-	HBLogDebug(@"inflightResponseContext: %@", inflightResponseContext);
-
-	return %orig();
 	UIContextMenuConfiguration *contextConfig = %orig();
 	UIMenu *(^origActionProvider)(NSArray *) = contextConfig.actionProvider;
 
@@ -318,16 +317,9 @@ MPRequestResponseController *getSharedResponseController() {
 
 		// This action will display the song picker
 		UIAction *queueSongsAction = [UIAction actionWithTitle:@"Queue Songs" image:[UIImage systemImageNamed:@"list.dash"] identifier:nil handler:^void (UIAction *sender) {
-			MPModelResponse *_modelResponse = MSHookIvar<MPModelResponse *>(self, "_modelResponse");
-			BQPickerController *picker = [[BQPickerController alloc] initWithCollection:_modelResponse.results dismissHandler:^void (NSArray<NSDictionary<NSString *, id> *> *entries) {
-				dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-					BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:getSharedResponseController()];
-					NSArray *songs = [entries mapObjectsUsingBlock:^MPModelSong *(NSDictionary *entry, NSUInteger index) {
-						return entry[@"song"];
-					}];
-					[controller playSongsNext:songs];
-				});
-			}];
+			MPMediaPickerController *picker = [[MPMediaPickerController alloc] initWithMediaTypes:MPMediaTypeMusic];
+			picker.delegate = self;
+			picker.allowsPickingMultipleItems = YES;
 
 			[(UIViewController *)self presentViewController:picker animated:YES completion:nil];
 		}];
@@ -418,10 +410,6 @@ static void ReloadPreferences() {
 			if (preferences[@"BetterTabShortcutEnabled"]) {
 				BetterTabShortcutEnabled = [preferences[@"BetterTabShortcutEnabled"] boolValue];
 			}
-			// TODO: remove
-			// if (preferences[@""]) {
-			// 	 = [preferences[@""] intValue];
-			// }
 		}
 	}
 }
@@ -454,9 +442,4 @@ static void ReloadPreferences() {
 		NULL,
 		CFNotificationSuspensionBehaviorCoalesce
 	);
-
-	// TODO: remove
-	// [NSNotificationCenter.defaultCenter addObserverForName:nil object:nil queue:nil usingBlock:^void (NSNotification *note) {
-	// 	HBLogDebug(@"%@, %@", note.name, note.object);
-	// }];
 }

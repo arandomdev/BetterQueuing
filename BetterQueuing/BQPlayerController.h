@@ -6,12 +6,12 @@
 
 - (instancetype)initWithRequestController:(MPRequestResponseController *)controller;
 
-- (BOOL)playSongsNext:(NSArray<MPModelSong *> *)songs;
+- (BOOL)playItemsNext:(NSArray<MPMediaItem *> *)songs;
 - (BOOL)moveQueueItemsToPlayNext:(NSArray<NSNumber *> *)itemsIndices;
 - (BOOL)stopQueueAtIndex:(NSInteger)index;
 - (void)shuffleQueue;
 
-- (NSArray<MPMusicPlayerQueueDescriptor *> *)queueDescriptorsForSongs:(NSArray<MPModelSong *> *)songs;
+- (NSArray<MPMusicPlayerQueueDescriptor *> *)queueDescriptorsForItems:(NSArray<MPMediaItem *> *)songs;
 - (BOOL)performRequest:(id)request;
 - (MPCPlayerResponseTracklist *)getTracklist;
 

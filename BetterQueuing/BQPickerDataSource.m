@@ -5,8 +5,6 @@
 #import "../CustomHeaders/MediaPlayer/MPMediaItem.h"
 #import "../CustomHeaders/MediaPlayer/MPConcreteMediaItemArtwork.h"
 
-// TODO: re-code with header
-
 @implementation BQPickerDataSource
 - (instancetype)initWithCollection:(MPSectionedCollection *)collection collectionOffset:(NSInteger)offset {
 	self = [super init];
