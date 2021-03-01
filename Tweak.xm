@@ -1,4 +1,5 @@
 #import <MediaPlayer/MPMediaPickerController.h>
+#import <HBLog.h>
 
 #import "CustomHeaders/UIContextMenuConfiguration.h"
 #import "CustomHeaders/MediaPlaybackCore/MediaPlaybackCore.h"
@@ -141,7 +142,7 @@ BOOL HideControlsEnabled = NO;
 	/*
 		velocity:
 			positive -> scroll down
-			negative -> scroll up
+			negative -> scroll up (^)
 	*/
 
 	if ([scrollView isKindOfClass:[UICollectionView class]]) {
@@ -178,22 +179,20 @@ BOOL BetterTabShortcutEnabled = NO;
 	if (BetterTabShortcutEnabled && [scrollView isKindOfClass:[UICollectionView class]]) {
 		UICollectionView *collectionView = (UICollectionView *)scrollView;
 
-		NSSet *visibleSections = [NSSet setWithArray:[collectionView.indexPathsForVisibleItems valueForKey:@"section"]];
-		
+		CGFloat upNextOffset = MSHookIvar<CGFloat>(self, "upNextSectionMinY");
 		CGPoint temp = CGPointMake(0, 0);
-		if ([visibleSections containsObject:@0]) {
-			// Scroll to history section and hide the controls
+
+		if (upNextOffset == collectionView.contentOffset.y) {
+			// Hide the controls and scroll to the top.
 			[self scrollViewWillEndDragging:scrollView withVelocity:CGPointMake(0, 1) targetContentOffset:&temp];
 			return YES;
 		}
-		else {
-			// Scroll to the top of the queue section and show the controls
-			[self scrollViewWillEndDragging:scrollView withVelocity:CGPointMake(0, -1) targetContentOffset:&temp];
 
-			NSIndexPath *path = [NSIndexPath indexPathForRow:0 inSection:1];
-			[collectionView scrollToItemAtIndexPath:path atScrollPosition:UICollectionViewScrollPositionTop animated:YES];
-			return NO;
-		}
+		// scroll to the up next header and show the controls
+		[self scrollViewWillEndDragging:scrollView withVelocity:CGPointMake(0, -1) targetContentOffset:&temp];
+		CGPoint offset = CGPointMake(0, upNextOffset);
+		[collectionView setContentOffset:offset animated:YES];
+		return NO;
 	}
 	return YES;
 }
@@ -247,6 +246,13 @@ BOOL BetterTabShortcutEnabled = NO;
 	UIMenu *(^newActionProvider)(NSArray *) = ^UIMenu *(NSArray *suggestedActions) {
 		UIMenu *origMenu = origActionProvider(suggestedActions);
 		UIViewController *nowPlayingController = ((UIViewController *)self).parentViewController;
+
+		if (![nowPlayingController isKindOfClass:NSClassFromString(@"MusicApplication.NowPlayingViewController")]) {
+			// It appears that in iOS 14, the controller with playerRequestController
+			// is the second one.
+			nowPlayingController = nowPlayingController.parentViewController;
+		}
+
 		MPRequestResponseController *queueResponseController = MSHookIvar<MPRequestResponseController *>(nowPlayingController, "playerRequestController");
 
 		#pragma mark Play Next Action
@@ -289,7 +295,19 @@ BOOL BetterTabShortcutEnabled = NO;
 			[nowPlayingController presentViewController:picker animated:YES completion:nil];
 		}];
 
-		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.betterqueuing.stickymenu" options:UIMenuOptionsDisplayInline children:@[playNextAction, stopHereAction, queueSongsAction]];
+		if ([origMenu.children[0] isKindOfClass:%c(UIDeferredMenuElement)]) {
+			// for iOS 14 we can just create a new Menu with our items.
+			UIMenu *customMenu = [UIMenu
+									menuWithTitle:@""
+									image:nil
+									identifier:@"com.haotestlabs.betterqueuing.stickymenu"
+									options:UIMenuOptionsDisplayInline
+									children:[@[playNextAction, stopHereAction, queueSongsAction] arrayByAddingObjectsFromArray:origMenu.children]
+								];
+			return customMenu;
+		}
+
+		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.betterqueuing.stickymenu" options:UIMenuOptionsDisplayInline children:[@[playNextAction, stopHereAction, queueSongsAction] arrayByAddingObjectsFromArray:origMenu.children]];
 		UIMenu *deferredMenu = (UIMenu *)origMenu.children[0];
 		deferredMenu = [deferredMenu menuByReplacingChildren:[deferredMenu.children arrayByAddingObject:customMenu]];
 		UIMenu *newMenu = [origMenu menuByReplacingChildren:@[deferredMenu]];
@@ -325,6 +343,18 @@ BOOL BetterTabShortcutEnabled = NO;
 			[(UIViewController *)self presentViewController:picker animated:YES completion:nil];
 		}];
 
+		if ([origMenu.children[0] isKindOfClass:%c(UIDeferredMenuElement)]) {
+			// for iOS 14 we can just create a new Menu with our items.
+			UIMenu *customMenu = [UIMenu
+									menuWithTitle:@""
+									image:nil
+									identifier:@"com.haotestlabs.betterqueuing.stickymenu"
+									options:UIMenuOptionsDisplayInline
+									children:[@[queueSongsAction] arrayByAddingObjectsFromArray:origMenu.children]
+								];
+			return customMenu;
+		}
+
 		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.betterqueuing.stickymenu" options:UIMenuOptionsDisplayInline children:@[queueSongsAction]];
 		UIMenu *deferredMenu = (UIMenu *)origMenu.children[0];
 		deferredMenu = [deferredMenu menuByReplacingChildren:[deferredMenu.children arrayByAddingObject:customMenu]];
@@ -349,8 +379,16 @@ BOOL BetterTabShortcutEnabled = NO;
 	[mediaPicker dismissViewControllerAnimated:YES completion:nil];
 
 	dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+		// For some reason there are a lot of duplicates, remove them.
+		NSMutableArray *filteredItems = [NSMutableArray new];
+		for (MPMediaItem *item in mediaItemCollection.items) {
+			if (![filteredItems containsObject:item]) {
+				[filteredItems addObject:item];
+			}
+		}
+
 		BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:SharedRequestResponseController()];
-		[controller playItemsNext:mediaItemCollection.items];
+		[controller playItemsNext:filteredItems];
 	});
 }
 
@@ -368,6 +406,18 @@ BOOL BetterTabShortcutEnabled = NO;
 
 			[(UIViewController *)self presentViewController:picker animated:YES completion:nil];
 		}];
+
+		if ([origMenu.children[0] isKindOfClass:%c(UIDeferredMenuElement)]) {
+			// for iOS 14 we can just create a new Menu with our items.
+			UIMenu *customMenu = [UIMenu
+									menuWithTitle:@""
+									image:nil
+									identifier:@"com.haotestlabs.betterqueuing.stickymenu"
+									options:UIMenuOptionsDisplayInline
+									children:[@[queueSongsAction] arrayByAddingObjectsFromArray:origMenu.children]
+								];
+			return customMenu;
+		}
 
 		UIMenu *customMenu = [UIMenu menuWithTitle:@"" image:nil identifier:@"com.haotestlabs.betterqueuing.stickymenu" options:UIMenuOptionsDisplayInline children:@[queueSongsAction]];
 		UIMenu *deferredMenu = (UIMenu *)origMenu.children[0];
@@ -405,6 +455,9 @@ BOOL BetterTabShortcutEnabled = NO;
 			<UIMenu; identifier = com.apple.menu.dynamic.<generated uuid>; children = [...];>
 		];>
 	*/
+
+	HBLogDebug(@"Here");
+
 	UIMenu *(^newBlock)(UIMenu *oldMenu) = ^UIMenu *(UIMenu *oldMenu) {
 		NSMutableArray<UIMenu *> *stickyMenus = [NSMutableArray new];
 		for (UIMenu *menu in oldMenu.children) {

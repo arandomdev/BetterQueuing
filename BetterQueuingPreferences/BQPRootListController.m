@@ -1,5 +1,6 @@
 #import <Preferences/PSSpecifier.h>
-#include "BQPRootListController.h"
+#import "HBLog.h"
+#import "BQPRootListController.h"
 
 @implementation BQPRootListController
 
