@@ -7,6 +7,8 @@
 
 #import "BetterQueuing/BetterQueuing.h"
 
+@import MediaPlayer;
+
 #pragma mark Custom Queue Count
 /*
 	Allows the user to change how many items are shown in
@@ -45,14 +47,26 @@ typedef struct {
 	and control the queue. This controller should only be
 	used to execute commands, and not to be used to enumerate
 	the queue.
+
+	SharedRequestResponseController() should be used for basic controls and
+	adding items to the queue. NOT FOR QUEUE ENUMERATION.
+
+	SharedNowPlayingResponseController() can be used for queue enumeration
+	and controls. I assume that I shouldn't use it when the now playing
+	view isn't present, but i haven't tested that.
+
 */
 
 static id _playbackEngine;
+static id _nowPlayingViewController;
 
 %hook MPRequestResponseController
 - (void)setDelegate:(id)delegate {
 	if ([delegate isKindOfClass:[objc_getClass("MusicApplication.PlaybackEngineController") class]]) {
 		_playbackEngine = delegate;
+	}
+	else if ([delegate isKindOfClass:[objc_getClass("MusicApplication.NowPlayingViewController") class]]) {
+		_nowPlayingViewController = delegate;
 	}
 	%orig();
 }
@@ -66,6 +80,16 @@ MPRequestResponseController *SharedRequestResponseController() {
 		return nil;
 	}
 }
+
+MPRequestResponseController *SharedNowPlayingResponseController() {
+	if (_nowPlayingViewController) {
+		return MSHookIvar<MPRequestResponseController *>(_nowPlayingViewController, "playerRequestController");
+	}
+	else {
+		return nil;
+	}
+}
+
 
 #pragma mark Response Replacement Notification
 %hook MusicApplication_NowPlayingViewController
@@ -456,8 +480,6 @@ BOOL BetterTabShortcutEnabled = NO;
 		];>
 	*/
 
-	HBLogDebug(@"Here");
-
 	UIMenu *(^newBlock)(UIMenu *oldMenu) = ^UIMenu *(UIMenu *oldMenu) {
 		NSMutableArray<UIMenu *> *stickyMenus = [NSMutableArray new];
 		for (UIMenu *menu in oldMenu.children) {
@@ -476,6 +498,156 @@ BOOL BetterTabShortcutEnabled = NO;
 		return newMenu;
 	};
 	%orig(newBlock);
+}
+%end
+
+#pragma mark SwipeUpNext
+/*
+	Add a swipe option to the library view that plays the song next
+*/
+
+BOOL SwipeUpNextEnabled = NO;
+
+@interface UICollectionViewTableLayout
+@property (getter=_delegateActual,nonatomic,readonly) id delegateActual;
+@end
+
+@interface MusicApplication_SongCell
+- (NSString *)title;
+- (NSString *)artistName;
+@end
+
+@interface _UICollectionViewListLayoutSectionConfiguration
+@property (nonatomic,copy) id leadingSwipeActionsConfigurationProvider;
+@end
+
+%hook UICollectionViewTableLayout
+- (BOOL)swipeActionController:(id)controller mayBeginSwipeForItemAtIndexPath:(NSIndexPath *)indexPath {
+	// Enable swipe actions
+	if (!SwipeUpNextEnabled) {
+		return %orig();
+	}
+
+	else if (
+		[self.delegateActual isKindOfClass:[objc_getClass("MusicApplication.SongsViewController") class]]
+		|| [self.delegateActual isKindOfClass:[objc_getClass("MusicApplication.ContainerDetailSongsViewController") class]]
+	) {
+		return YES;
+	}
+
+	else {
+		return %orig();
+	}
+}
+
+- (id)swipeActionController:(id)controller trailingSwipeConfigurationForItemAtIndexPath:(id)indexPath {
+	// Suppress the unused delete action
+	if (!SwipeUpNextEnabled) {
+		return %orig();
+	}
+
+	else if (
+		[self.delegateActual isKindOfClass:[objc_getClass("MusicApplication.SongsViewController") class]]
+		|| [self.delegateActual isKindOfClass:[objc_getClass("MusicApplication.ContainerDetailSongsViewController") class]]
+	) {
+		return nil;
+	}
+
+	else {
+		return %orig();
+	}
+}
+
+- (UISwipeActionsConfiguration *)swipeActionController:(id)controller leadingSwipeConfigurationForItemAtIndexPath:(NSIndexPath *)indexPath {
+	if (!SwipeUpNextEnabled) {
+		return %orig();
+	}
+	else if ([self.delegateActual isKindOfClass:[NSClassFromString(@"MusicApplication.SongsViewController") class]]) {
+		// for the library songs view
+		UIContextualAction *playNextAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleNormal title:nil handler:^(UIContextualAction * _Nonnull action, __kindof UIView * _Nonnull sourceView, void (^ _Nonnull completionHandler)(BOOL)) {
+
+			// needs to be called from the main thread
+			id songController = self.delegateActual;
+			MusicApplication_SongCell *cell = (MusicApplication_SongCell *)[songController collectionView:[songController collectionView] cellForItemAtIndexPath:indexPath];
+			
+			NSString *title = [cell title];
+			NSString *artist = [cell artistName];
+			
+			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+				// Because I can't find a response, I need to find the song item by its name and artist.
+				MPMediaQuery *query = [MPMediaQuery songsQuery];
+				[query addFilterPredicate:[MPMediaPropertyPredicate predicateWithValue:title forProperty:@"title"]];
+				[query addFilterPredicate:[MPMediaPropertyPredicate predicateWithValue:artist forProperty:@"artist"]];
+
+				BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:SharedRequestResponseController()];
+				[controller playItemsNext:[query.items subarrayWithRange:NSMakeRange(0,1)]];
+			});
+
+			completionHandler(YES);
+		}];
+		playNextAction.backgroundColor = UIColor.systemBlueColor;
+		playNextAction.image = [UIImage systemImageNamed:@"text.insert"];
+
+		UISwipeActionsConfiguration *actionConfig = [UISwipeActionsConfiguration configurationWithActions:@[playNextAction]];
+		return actionConfig;
+	}
+	else if ([self.delegateActual isKindOfClass:[NSClassFromString(@"MusicApplication.ContainerDetailSongsViewController") class]]) {
+		// for playlists and albums
+		UIContextualAction *playNextAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleNormal title:nil handler:^(UIContextualAction * _Nonnull action, __kindof UIView * _Nonnull sourceView, void (^ _Nonnull completionHandler)(BOOL)) {
+			id songController = self.delegateActual;
+			MPModelResponse *modelResponse = MSHookIvar<MPModelResponse *>(songController, "_modelResponse");
+			MPModelSong *song = [[[BQSongProvider alloc] initWithSongs: modelResponse.results] songAtIndex:indexPath.row];
+			MPMediaItem *item = [MPMediaItem itemFromSong:song];
+
+			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+				BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:SharedRequestResponseController()];
+				[controller playItemsNext:@[item]];
+			});
+
+			completionHandler(YES);
+		}];
+		playNextAction.backgroundColor = UIColor.systemBlueColor;
+		playNextAction.image = [UIImage systemImageNamed:@"text.insert"];
+
+		UISwipeActionsConfiguration *actionConfig = [UISwipeActionsConfiguration configurationWithActions:@[playNextAction]];
+		return actionConfig;
+	}
+	else {
+		return %orig();
+	}
+}
+%end
+
+%hook _UICollectionViewListLayoutSectionConfiguration
+-(void)setTrailingSwipeActionsConfigurationProvider:(id)arg1 {
+	%orig();
+
+	if (!SwipeUpNextEnabled) {
+		return;
+	}
+
+	// for the up next queue
+	self.leadingSwipeActionsConfigurationProvider = ^UISwipeActionsConfiguration *(NSIndexPath *indexPath) {
+		if (indexPath.section != 1) {
+			// don't allow for the history section
+			return nil;
+		}
+
+		UIContextualAction *playNextAction = [UIContextualAction contextualActionWithStyle:UIContextualActionStyleNormal title:nil handler:^(UIContextualAction * _Nonnull action, __kindof UIView * _Nonnull sourceView, void (^ _Nonnull completionHandler)(BOOL)) {
+
+			dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+				BQPlayerController *controller = [[BQPlayerController alloc] initWithRequestController:SharedNowPlayingResponseController()];
+				[controller moveQueueItemsToPlayNext:@[@(indexPath.row+1)]];
+			});
+
+			completionHandler(YES);
+		}];
+		playNextAction.backgroundColor = UIColor.systemBlueColor;
+		playNextAction.image = [UIImage systemImageNamed:@"text.insert"];
+
+		UISwipeActionsConfiguration *actionConfig = [UISwipeActionsConfiguration configurationWithActions:@[playNextAction]];
+		return actionConfig;
+	};
 }
 %end
 
@@ -506,6 +678,9 @@ static void ReloadPreferences() {
 			}
 			if (preferences[@"BetterTabShortcutEnabled"]) {
 				BetterTabShortcutEnabled = [preferences[@"BetterTabShortcutEnabled"] boolValue];
+			}
+			if (preferences[@"SwipeUpNextEnabled"]) {
+				SwipeUpNextEnabled = [preferences[@"SwipeUpNextEnabled"] boolValue];
 			}
 		}
 	}

@@ -130,6 +130,30 @@
 			<key>key</key>
 			<string>BetterTabShortcutEnabled</string>
 		</dict>
+
+		<!-- SwipeUpNext -->
+		<dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>Swipe To Play Next</string>
+			<key>footerText</key>
+			<string>Play a song next by swiping on it. You may need to quit the music app for this to go into effect. Thanks to u/HuluHasLiveSports for the bounty!</string>
+		</dict>
+		<dict>
+			<key>cell</key>
+			<string>PSSwitchCell</string>
+			<key>label</key>
+			<string>Enabled</string>
+			<key>default</key>
+			<true/>
+			<key>defaults</key>
+			<string>com.haotestlabs.betterqueuingpreferences</string>
+			<key>PostNotification</key>
+			<string>com.haotestlabs.betterqueuingpreferences.reload</string>
+			<key>key</key>
+			<string>SwipeUpNextEnabled</string>
+		</dict>
 	</array>
 </dict>
 </plist>
