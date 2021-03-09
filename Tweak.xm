@@ -506,7 +506,7 @@ BOOL BetterTabShortcutEnabled = NO;
 	Add a swipe option to the library view that plays the song next
 */
 
-BOOL SwipeUpNextEnabled = NO;
+BOOL SwipeUpNextEnabled = YES;
 
 @interface UICollectionViewTableLayout
 @property (getter=_delegateActual,nonatomic,readonly) id delegateActual;
